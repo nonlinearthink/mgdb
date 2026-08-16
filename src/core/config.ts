@@ -1,4 +1,10 @@
-import { readFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -165,6 +171,68 @@ export function loadConfig(file: string): Result<Config> {
   }
 
   return parseConfig(parsed, file);
+}
+
+/**
+ * 写配置。权限收紧到仅本人可读写——这个文件里装着数据库密码，
+ * 同机的其他账户不该读得到。writeFileSync 的 mode 只在创建时生效，
+ * 所以对已存在的文件还要显式 chmod 一次。
+ */
+export function saveConfig(file: string, config: Config): Result<void> {
+  try {
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`, {
+      mode: 0o600,
+    });
+    chmodSync(file, 0o600);
+    return ok(undefined);
+  } catch (cause) {
+    return err(`配置写入失败：${file}\n${(cause as Error).message}`);
+  }
+}
+
+/** 配置文件还不存在时的起点。不预设 outDir，首次使用时由使用者给。 */
+export function emptyConfig(): Config {
+  return { defaults: { ...BUILTIN_DEFAULTS }, sources: [] };
+}
+
+export function loadConfigOrEmpty(file: string): Result<Config> {
+  if (!existsSync(file)) return ok(emptyConfig());
+  return loadConfig(file);
+}
+
+export function addSource(config: Config, source: DataSource): Result<Config> {
+  if (config.sources.some((each) => each.name === source.name)) {
+    return err(`已经存在同名数据源 ${source.name}，要改用 mgdb source edit。`);
+  }
+  return ok({ ...config, sources: [...config.sources, source] });
+}
+
+export function updateSource(
+  config: Config,
+  name: string,
+  patch: Partial<Omit<DataSource, "name">>
+): Result<Config> {
+  if (!config.sources.some((each) => each.name === name)) {
+    return err(`找不到数据源 ${name}。`);
+  }
+  return ok({
+    ...config,
+    sources: config.sources.map((each) =>
+      each.name === name ? { ...each, ...patch } : each
+    ),
+  });
+}
+
+/** 只从配置里摘掉，绝不碰该数据源已经产出的备份文件 */
+export function removeSource(config: Config, name: string): Result<Config> {
+  if (!config.sources.some((each) => each.name === name)) {
+    return err(`找不到数据源 ${name}。`);
+  }
+  return ok({
+    ...config,
+    sources: config.sources.filter((each) => each.name !== name),
+  });
 }
 
 export function findSource(config: Config, name: string): Result<DataSource> {

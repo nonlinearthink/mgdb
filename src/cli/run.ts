@@ -6,12 +6,14 @@ import { defaultConfigPath, loadConfig } from "../core/config.ts";
 import { defaultStatePath, loadState } from "../core/state.ts";
 import { collectStatus, type SourceStatus } from "../core/status.ts";
 import type { BackupFormat } from "../core/types.ts";
+import { sourceCommand } from "./source-command.ts";
 
 const USAGE = `mgdb — PostgreSQL 备份工具
 
 用法：
   mgdb backup --source <数据源名> [--out <目录>] [--format sql|custom] [--keep <份数>]
   mgdb status [--json]
+  mgdb source list|add|edit|remove
   mgdb help
 
 选项：
@@ -198,6 +200,8 @@ export async function main(argv: string[]): Promise<number> {
       return backupCommand(rest);
     case "status":
       return statusCommand(rest);
+    case "source":
+      return sourceCommand(rest);
     case "help":
     case "--help":
     case "-h":
