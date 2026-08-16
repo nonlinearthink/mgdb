@@ -21,6 +21,7 @@ import {
   fixedClock,
   makeConfig,
   makeRoot,
+  noopNotify,
   seedFile,
   TRUNCATED_SQL,
   VALID_CUSTOM,
@@ -52,7 +53,13 @@ function runWith(configPath: string, keep?: number) {
   const pg = fakePgTools();
   return runBackup(
     { sourceName: "manygames-local", ...(keep === undefined ? {} : { keep }) },
-    { configPath, runPgTool: pg.run, now: fixedClock }
+    {
+      configPath,
+      runPgTool: pg.run,
+      now: fixedClock,
+      statePath: path.join(root, "state.json"),
+      notify: noopNotify,
+    }
   );
 }
 
@@ -238,7 +245,13 @@ describe("清理范围：只碰本工具生成的、属于该数据源的文件"
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(false);
@@ -304,7 +317,13 @@ describe("latest 指针", () => {
     const sql = fakePgTools();
     await runBackup(
       { sourceName: "manygames-local", format: "sql" },
-      { configPath, runPgTool: sql.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: sql.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
     expect(existsSync(path.join(outDir, "manygames-local-latest.sql"))).toBe(
       true
@@ -313,7 +332,13 @@ describe("latest 指针", () => {
     const custom = fakePgTools({ contents: VALID_CUSTOM });
     await runBackup(
       { sourceName: "manygames-local", format: "custom" },
-      { configPath, runPgTool: custom.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: custom.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     // 旧的 latest.sql 必须消失，否则「最新那份」会指向一份更旧的备份

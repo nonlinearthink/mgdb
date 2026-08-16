@@ -1,13 +1,17 @@
 import { parseArgs } from "node:util";
+import { notifyMacOS } from "../adapters/notify.ts";
 import { spawnPgTool } from "../adapters/pg-tool.ts";
 import { runBackup } from "../core/backup.ts";
-import { defaultConfigPath } from "../core/config.ts";
+import { defaultConfigPath, loadConfig } from "../core/config.ts";
+import { defaultStatePath, loadState } from "../core/state.ts";
+import { collectStatus, type SourceStatus } from "../core/status.ts";
 import type { BackupFormat } from "../core/types.ts";
 
 const USAGE = `mgdb — PostgreSQL 备份工具
 
 用法：
   mgdb backup --source <数据源名> [--out <目录>] [--format sql|custom] [--keep <份数>]
+  mgdb status [--json]
   mgdb help
 
 选项：
@@ -18,6 +22,7 @@ const USAGE = `mgdb — PostgreSQL 备份工具
 
 环境变量：
   MGDB_CONFIG    配置文件位置，默认 ~/.config/mgdb/config.json
+  MGDB_STATE     状态文件位置，默认 ~/.config/mgdb/state.json
 `;
 
 export function formatBytes(bytes: number): string {
@@ -90,7 +95,9 @@ async function backupCommand(argv: string[]): Promise<number> {
     },
     {
       configPath: defaultConfigPath(),
+      statePath: defaultStatePath(),
       runPgTool: spawnPgTool,
+      notify: notifyMacOS,
       now: () => new Date(),
     }
   );
@@ -113,12 +120,84 @@ async function backupCommand(argv: string[]): Promise<number> {
   return 0;
 }
 
+function formatTime(at: Date | undefined): string {
+  if (!at) return "从未成功";
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(
+    at.getHours()
+  )}:${pad(at.getMinutes())}`;
+}
+
+function describeStale(status: SourceStatus): string {
+  if (status.neverSucceeded) return "⚠ 从未成功备份过";
+  if (status.stale) return `⚠ 已 ${status.daysSinceSuccess} 天没有成功备份`;
+  return "正常";
+}
+
+function statusCommand(argv: string[]): number {
+  let asJson = false;
+  try {
+    const { values } = parseArgs({
+      args: argv,
+      options: { json: { type: "boolean" } },
+      strict: true,
+    });
+    asJson = values.json ?? false;
+  } catch (cause) {
+    console.error(`${(cause as Error).message}\n\n${USAGE}`);
+    return 2;
+  }
+
+  const config = loadConfig(defaultConfigPath());
+  if (!config.ok) {
+    console.error(config.error);
+    return 1;
+  }
+
+  const statuses = collectStatus(
+    config.value,
+    loadState(defaultStatePath()),
+    new Date()
+  );
+
+  if (asJson) {
+    console.log(JSON.stringify(statuses, null, 2));
+    return 0;
+  }
+
+  if (statuses.length === 0) {
+    console.log("配置里还没有任何数据源。先运行 mgdb source add 添加一个。");
+    return 0;
+  }
+
+  const width = Math.max(...statuses.map((status) => status.name.length));
+  for (const status of statuses) {
+    console.log(
+      [
+        status.name.padEnd(width),
+        formatTime(status.lastSuccessAt).padEnd(16),
+        `${String(status.count).padStart(3)} 份`,
+        formatBytes(status.bytes).padStart(9),
+        describeStale(status),
+      ].join("  ")
+    );
+    if (status.lastOk === false && status.lastError) {
+      console.log(
+        `${" ".repeat(width)}  上次失败：${status.lastError.split("\n")[0]}`
+      );
+    }
+  }
+  return 0;
+}
+
 export async function main(argv: string[]): Promise<number> {
   const [command, ...rest] = argv;
 
   switch (command) {
     case "backup":
       return backupCommand(rest);
+    case "status":
+      return statusCommand(rest);
     case "help":
     case "--help":
     case "-h":

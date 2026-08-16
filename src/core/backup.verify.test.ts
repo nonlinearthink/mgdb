@@ -21,6 +21,7 @@ import {
   makeConfig,
   makeFakePgBinDir,
   makeRoot,
+  noopNotify,
   outputPathOf,
   TRUNCATED_SQL,
   VALID_CUSTOM,
@@ -63,7 +64,13 @@ describe("原子写入", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     // 执行中：目录里只有临时文件，没有任何看起来像正式备份的东西
@@ -85,7 +92,13 @@ describe("原子写入", () => {
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     const target = outputPathOf(pg.dumpCalls[0]!.args)!;
@@ -106,7 +119,13 @@ describe("原子写入", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(true);
@@ -127,7 +146,13 @@ describe("失败时不留残留、不动已有备份", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(false);
@@ -143,7 +168,13 @@ describe("失败时不留残留、不动已有备份", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(false);
@@ -165,7 +196,13 @@ describe("失败时不留残留、不动已有备份", () => {
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(readFileSync(existing, "utf8")).toBe("上一份完好的备份");
@@ -183,7 +220,13 @@ describe("格式感知校验", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(false);
@@ -201,7 +244,13 @@ describe("格式感知校验", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(false);
@@ -218,7 +267,13 @@ describe("格式感知校验", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(true);
@@ -236,7 +291,13 @@ describe("格式感知校验", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(false);
@@ -254,7 +315,13 @@ describe("格式感知校验", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(false);
@@ -272,7 +339,13 @@ describe("格式感知校验", () => {
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(pg.restoreCalls).toHaveLength(0);
@@ -289,7 +362,13 @@ describe("格式选择", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local", format: "custom" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok && path.basename(result.file)).toBe(
@@ -311,14 +390,26 @@ describe("格式选择", () => {
     const inherited = fakePgTools({ contents: VALID_CUSTOM });
     const fromSource = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: inherited.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: inherited.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
     expect(fromSource.ok && path.extname(fromSource.file)).toBe(".dump");
 
     const overridden = fakePgTools();
     const fromCli = await runBackup(
       { sourceName: "manygames-local", format: "sql" },
-      { configPath, runPgTool: overridden.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: overridden.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
     expect(fromCli.ok && path.extname(fromCli.file)).toBe(".sql");
   });
@@ -338,7 +429,13 @@ describe("格式选择", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(false);

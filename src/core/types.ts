@@ -48,6 +48,14 @@ export type RunPgTool = (
   invocation: PgToolInvocation
 ) => Promise<PgToolOutcome>;
 
+export interface Notification {
+  title: string;
+  body: string;
+}
+
+/** 主动把失败推给使用者的通道。失败可见性靠它，不靠使用者主动来看。 */
+export type Notify = (notification: Notification) => Promise<void>;
+
 export type Result<T, E = string> =
   | { ok: true; value: T }
   | { ok: false; error: E };

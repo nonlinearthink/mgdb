@@ -10,6 +10,7 @@ import {
   makeConfig,
   makeEmptyPgBinDir,
   makeRoot,
+  noopNotify,
   outputPathOf,
   VALID_SQL,
   writeConfigFile,
@@ -33,7 +34,13 @@ describe("runBackup — 成功路径", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(true);
@@ -53,7 +60,13 @@ describe("runBackup — 成功路径", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(true);
@@ -66,7 +79,13 @@ describe("runBackup — 成功路径", () => {
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(pg.calls).toHaveLength(1);
@@ -89,7 +108,13 @@ describe("runBackup — 成功路径", () => {
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     const { args } = pg.calls[0]!;
@@ -102,7 +127,13 @@ describe("runBackup — 成功路径", () => {
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(pg.calls[0]!.args).toContain("--no-owner");
@@ -117,7 +148,13 @@ describe("runBackup — 密码处理", () => {
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     const call = pg.calls[0]!;
@@ -138,7 +175,13 @@ describe("runBackup — 密码处理", () => {
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     const call = pg.calls[0]!;
@@ -157,7 +200,13 @@ describe("runBackup — 密码处理", () => {
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(pg.calls[0]!.env.PGPASSWORD).toBeUndefined();
@@ -177,14 +226,26 @@ describe("runBackup — 参数优先级", () => {
     const first = fakePgTools();
     const withCli = await runBackup(
       { sourceName: "manygames-local", outDir: cliDir },
-      { configPath, runPgTool: first.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: first.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
     expect(withCli.ok && path.dirname(withCli.file)).toBe(cliDir);
 
     const second = fakePgTools();
     const withoutCli = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: second.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: second.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
     expect(withoutCli.ok && path.dirname(withoutCli.file)).toBe(sourceDir);
   });
@@ -197,7 +258,13 @@ describe("runBackup — 参数优先级", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok && path.dirname(result.file)).toBe(defaultsDir);
@@ -214,6 +281,8 @@ describe("runBackup — 失败路径", () => {
         configPath: path.join(root, "nope.json"),
         runPgTool: pg.run,
         now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
       }
     );
 
@@ -230,7 +299,13 @@ describe("runBackup — 失败路径", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(false);
@@ -245,7 +320,13 @@ describe("runBackup — 失败路径", () => {
 
     const result = await runBackup(
       { sourceName: "typo-name" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(false);
@@ -263,7 +344,13 @@ describe("runBackup — 失败路径", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(false);
@@ -279,7 +366,13 @@ describe("runBackup — 失败路径", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(false);
@@ -296,7 +389,13 @@ describe("runBackup — 失败路径", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(false);
@@ -313,7 +412,13 @@ describe("runBackup — 失败路径", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(false);
@@ -328,7 +433,13 @@ describe("runBackup — 失败路径", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(false);
@@ -343,7 +454,13 @@ describe("runBackup — 失败路径", () => {
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(result.ok).toBe(false);
@@ -361,7 +478,13 @@ describe("runBackup — 失败路径", () => {
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     expect(readdirSync(outDir)).toEqual([]);
@@ -379,7 +502,13 @@ describe("runBackup — 子进程收到的产物路径", () => {
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgTool: pg.run, now: fixedClock }
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
     );
 
     const target = outputPathOf(pg.calls[0]!.args);

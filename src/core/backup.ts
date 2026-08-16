@@ -12,8 +12,10 @@ import { parsePgUrl } from "./datasource.ts";
 import { backupFileName } from "./naming.ts";
 import { locatePgTool } from "./pg-tools.ts";
 import { pruneBackups, repointLatest } from "./retention.ts";
+import { recordRun } from "./state.ts";
 import type {
   BackupFormat,
+  Notify,
   PgToolInvocation,
   PgToolOutcome,
   RunPgTool,
@@ -32,7 +34,9 @@ export interface BackupRequest {
 
 export interface BackupDeps {
   configPath: string;
+  statePath: string;
   runPgTool: RunPgTool;
+  notify: Notify;
   now: () => Date;
 }
 
@@ -114,9 +118,56 @@ function buildInvocation(
   };
 }
 
+/** 取首行：通知面板放不下多行，完整原因留在状态文件和终端里 */
+function firstLine(message: string): string {
+  return message.split("\n")[0] ?? message;
+}
+
+/**
+ * 备份的唯一入口。命令行与界面共用它，所以两条路径的行为不可能分叉。
+ *
+ * 无论成败都会记状态；失败还会主动发通知——「备份失败了但我不知道」
+ * 是备份系统最经典的死法，不能只靠使用者主动来看。
+ */
 export async function runBackup(
   request: BackupRequest,
   deps: BackupDeps
+): Promise<BackupResult> {
+  const at = deps.now();
+  const result = await attemptBackup(request, deps, at);
+
+  const stateWarning = recordRun(deps.statePath, request.sourceName, {
+    at,
+    ok: result.ok,
+    ...(result.ok
+      ? { file: result.file, bytes: result.bytes }
+      : { error: `[${result.failure.step}] ${result.failure.message}` }),
+  });
+
+  if (!result.ok) {
+    try {
+      await deps.notify({
+        title: `mgdb 备份失败：${result.source}`,
+        body: `环节 ${result.failure.step}：${firstLine(result.failure.message)}`,
+      });
+    } catch {
+      // 通知发不出去不改变备份本身的结论
+    }
+    return result;
+  }
+
+  return {
+    ...result,
+    warnings: stateWarning
+      ? [...result.warnings, stateWarning]
+      : result.warnings,
+  };
+}
+
+async function attemptBackup(
+  request: BackupRequest,
+  deps: BackupDeps,
+  at: Date
 ): Promise<BackupResult> {
   const source = request.sourceName;
   const fail = (step: BackupStep, message: string): BackupResult => ({
@@ -167,7 +218,7 @@ export async function runBackup(
     );
   }
 
-  const fileName = backupFileName(source, deps.now(), format);
+  const fileName = backupFileName(source, at, format);
   const target = path.join(outDir, fileName);
   // 点号开头 + .tmp 结尾：既不会被保留清理当成正式产物，也不会被 latest 指针选中
   const temp = path.join(outDir, `.${fileName}.tmp`);
