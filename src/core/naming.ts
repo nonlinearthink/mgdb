@@ -2,7 +2,7 @@ import type { BackupFormat } from "./types.ts";
 
 export const EXTENSION: Record<BackupFormat, string> = {
   sql: "sql",
-  custom: "dump",
+  dump: "dump",
 };
 
 function pad(value: number): string {
@@ -26,7 +26,7 @@ export function backupFileName(
 
 const FORMAT_BY_EXTENSION: Record<string, BackupFormat> = {
   sql: "sql",
-  dump: "custom",
+  dump: "dump",
 };
 
 const BACKUP_FILE = /^(.+)-(\d{8}-\d{6})\.(sql|dump)$/;

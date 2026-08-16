@@ -13,7 +13,7 @@ const USAGE = `mgdb — PostgreSQL 备份工具
 
 用法：
   mgdb                                    进入交互界面（主屏为状态面板）
-  mgdb backup --source <数据源名> [--out <目录>] [--format sql|custom] [--keep <份数>]
+  mgdb backup --source <数据源名> [--out <目录>] [--format sql|dump] [--keep <份数>]
   mgdb status [--json]
   mgdb source list|add|edit|remove
   mgdb help
@@ -21,7 +21,9 @@ const USAGE = `mgdb — PostgreSQL 备份工具
 选项：
   -s, --source   要备份的数据源名（必填）
   -o, --out      本次的输出目录，覆盖配置，不写回
-  -f, --format   本次的产物格式，sql 或 custom，覆盖配置，不写回
+  -f, --format   本次的产物格式，覆盖配置，不写回
+                 sql  — 纯文本，可读可 grep，用 psql 灌回
+                 dump — pgsql 自定义压缩格式，体积小，将来可选表还原
       --keep     本次保留的备份份数，0 表示不清理，覆盖配置，不写回
 
 环境变量：
@@ -33,7 +35,8 @@ function parseFormat(
   value: string | undefined
 ): BackupFormat | undefined | null {
   if (value === undefined) return undefined;
-  if (value === "sql" || value === "custom") return value;
+  if (value === "sql" || value === "dump") return value;
+  if (value === "custom") return "dump"; // 兼容早期写法
   return null;
 }
 
@@ -69,7 +72,7 @@ async function backupCommand(argv: string[]): Promise<number> {
 
   const format = parseFormat(rawFormat);
   if (format === null) {
-    console.error(`--format 只能是 sql 或 custom，收到的是 ${rawFormat}`);
+    console.error(`--format 只能是 sql 或 dump，收到的是 ${rawFormat}`);
     return 2;
   }
 

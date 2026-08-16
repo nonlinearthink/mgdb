@@ -1,4 +1,11 @@
 import type { SourceStatus } from "./status.ts";
+import type { BackupFormat } from "./types.ts";
+
+/** 给人看的格式名。命令行取值仍是短的那个，括号里的东西不用敲。 */
+export const FORMAT_LABEL: Record<BackupFormat, string> = {
+  sql: "sql（纯文本）",
+  dump: "dump（pgsql 自定义压缩格式）",
+};
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

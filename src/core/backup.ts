@@ -112,7 +112,8 @@ function buildInvocation(
     "--no-owner",
     "--no-privileges",
   ];
-  if (format === "custom") args.push("--format", "custom");
+  // "custom" 是 pg_dump 自己的参数取值，不能跟着我们对外的命名改
+  if (format === "dump") args.push("--format", "custom");
   args.push("--file", target);
 
   return {
@@ -206,9 +207,9 @@ async function attemptBackup(
   const dumpBin = locatePgTool("pg_dump", config.value.defaults.pgBinDir);
   if (!dumpBin.ok) return fail("pg-tool", dumpBin.error);
 
-  // custom 格式要靠 pg_restore 校验。先确认它在，别等跑完几十分钟的 dump 才发现没法校验。
+  // dump 格式要靠 pg_restore 校验。先确认它在，别等跑完几十分钟才发现没法校验。
   let restoreBin: string | undefined;
-  if (format === "custom") {
+  if (format === "dump") {
     const located = locatePgTool("pg_restore", config.value.defaults.pgBinDir);
     if (!located.ok) return fail("pg-tool", located.error);
     restoreBin = located.value;

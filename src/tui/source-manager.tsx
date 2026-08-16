@@ -13,7 +13,11 @@ import {
   type PgConnection,
   parsePgUrl,
 } from "../core/datasource.ts";
-import type { Config, DataSource } from "../core/types.ts";
+import {
+  type Config,
+  type DataSource,
+  normalizeBackupFormat,
+} from "../core/types.ts";
 import { Hint, SelectList, TextField } from "./widgets.tsx";
 
 type Screen =
@@ -42,7 +46,7 @@ const FIELDS: { key: keyof Draft; label: string; mask?: boolean }[] = [
   { key: "password", label: "密码", mask: true },
   { key: "database", label: "数据库" },
   { key: "outDir", label: "输出目录（留空则继承默认）" },
-  { key: "format", label: "格式 sql/custom（留空则继承）" },
+  { key: "format", label: "格式 sql/dump（留空则继承）" },
   { key: "keep", label: "保留份数（留空则继承）" },
 ];
 
@@ -81,8 +85,11 @@ function toDataSource(draft: Draft): DataSource | string {
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
     return `端口非法：${draft.port}`;
   }
-  if (draft.format && draft.format !== "sql" && draft.format !== "custom") {
-    return `格式只能是 sql 或 custom，收到的是 ${draft.format}`;
+  const normalizedFormat = draft.format
+    ? normalizeBackupFormat(draft.format)
+    : undefined;
+  if (draft.format && !normalizedFormat) {
+    return `格式只能是 sql 或 dump，收到的是 ${draft.format}`;
   }
   let keep: number | undefined;
   if (draft.keep.trim()) {
@@ -107,7 +114,7 @@ function toDataSource(draft: Draft): DataSource | string {
     name: draft.name.trim(),
     url,
     ...(draft.outDir.trim() ? { outDir: draft.outDir.trim() } : {}),
-    ...(draft.format ? { format: draft.format as "sql" | "custom" } : {}),
+    ...(normalizedFormat ? { format: normalizedFormat } : {}),
     ...(keep === undefined ? {} : { keep }),
   };
 }

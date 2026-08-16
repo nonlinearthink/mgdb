@@ -3,7 +3,7 @@ import { Box, Text, useInput } from "ink";
 import { useEffect, useState } from "react";
 import type { BackupResult } from "../core/backup.ts";
 import { runBackup } from "../core/backup.ts";
-import { formatBytes, formatElapsed } from "../core/format.ts";
+import { FORMAT_LABEL, formatBytes, formatElapsed } from "../core/format.ts";
 import type { BackupFormat, Config, DataSource } from "../core/types.ts";
 import type { TuiDeps } from "./deps.ts";
 import { Hint, SelectList, Spinner, TextField } from "./widgets.tsx";
@@ -149,7 +149,7 @@ function Confirm({
     else if (input === "f") {
       setOverrides({
         ...overrides,
-        format: overrides.format === "sql" ? "custom" : "sql",
+        format: overrides.format === "sql" ? "dump" : "sql",
       });
     } else if (key.return) {
       if (overrides.outDir.trim()) onRun();
@@ -172,7 +172,7 @@ function Confirm({
           </Text>
         )}
       </Box>
-      <Text>产物格式：{overrides.format}</Text>
+      <Text>产物格式：{FORMAT_LABEL[overrides.format]}</Text>
       <Hint>
         {editingDir
           ? "回车结束编辑"

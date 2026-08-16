@@ -258,10 +258,10 @@ describe("格式感知校验", () => {
     expect(result.failure.step).toBe("verify");
   });
 
-  test("custom 产物经 pg_restore --list 校验", async () => {
+  test("dump 产物经 pg_restore --list 校验", async () => {
     const configPath = writeConfigFile(
       root,
-      makeConfig(root, { defaults: { outDir, format: "custom" } })
+      makeConfig(root, { defaults: { outDir, format: "dump" } })
     );
     const pg = fakePgTools({ contents: VALID_CUSTOM });
 
@@ -282,10 +282,10 @@ describe("格式感知校验", () => {
     expect(backupsIn(outDir)).toEqual([`manygames-local-${FIXED_STAMP}.dump`]);
   });
 
-  test("custom 产物列不出目录时被拒", async () => {
+  test("dump 产物列不出目录时被拒", async () => {
     const configPath = writeConfigFile(
       root,
-      makeConfig(root, { defaults: { outDir, format: "custom" } })
+      makeConfig(root, { defaults: { outDir, format: "dump" } })
     );
     const pg = fakePgTools({ contents: VALID_CUSTOM, restoreListCode: 1 });
 
@@ -306,10 +306,10 @@ describe("格式感知校验", () => {
     expect(backupsIn(outDir)).toEqual([]);
   });
 
-  test("custom 产物缺 PGDMP 魔数时被拒，且不必再跑 pg_restore", async () => {
+  test("dump 产物缺 PGDMP 魔数时被拒，且不必再跑 pg_restore", async () => {
     const configPath = writeConfigFile(
       root,
-      makeConfig(root, { defaults: { outDir, format: "custom" } })
+      makeConfig(root, { defaults: { outDir, format: "dump" } })
     );
     const pg = fakePgTools({ contents: BOGUS_CUSTOM });
 
@@ -353,7 +353,7 @@ describe("格式感知校验", () => {
 });
 
 describe("格式选择", () => {
-  test("custom 格式产物扩展名为 dump 且带上 --format custom", async () => {
+  test("dump 格式产物扩展名为 dump，且按 pg_dump 的取值传 --format custom", async () => {
     const configPath = writeConfigFile(
       root,
       makeConfig(root, { defaults: { outDir } })
@@ -361,7 +361,7 @@ describe("格式选择", () => {
     const pg = fakePgTools({ contents: VALID_CUSTOM });
 
     const result = await runBackup(
-      { sourceName: "manygames-local", format: "custom" },
+      { sourceName: "manygames-local", format: "dump" },
       {
         configPath,
         runPgTool: pg.run,
@@ -375,6 +375,7 @@ describe("格式选择", () => {
       `manygames-local-${FIXED_STAMP}.dump`
     );
     const { args } = pg.dumpCalls[0]!;
+    // 传给 pg_dump 的仍是它自己的取值 custom，对外的命名改了不影响这里
     expect(args[args.indexOf("--format") + 1]).toBe("custom");
   });
 
@@ -383,7 +384,7 @@ describe("格式选择", () => {
       root,
       makeConfig(root, {
         defaults: { outDir, format: "sql" },
-        sources: [defaultSource({ format: "custom" })],
+        sources: [defaultSource({ format: "dump" })],
       })
     );
 
@@ -414,13 +415,13 @@ describe("格式选择", () => {
     expect(fromCli.ok && path.extname(fromCli.file)).toBe(".sql");
   });
 
-  test("custom 格式下找不到 pg_restore 时在开跑前就失败", async () => {
+  test("dump 格式下找不到 pg_restore 时在开跑前就失败", async () => {
     const configPath = writeConfigFile(
       root,
       makeConfig(root, {
         defaults: {
           outDir,
-          format: "custom",
+          format: "dump",
           pgBinDir: makeFakePgBinDir(root, ["pg_dump"]),
         },
       })
@@ -444,5 +445,76 @@ describe("格式选择", () => {
     expect(result.failure.message).toContain("pg_restore");
     // 校验工具不到位就别浪费一次可能几十分钟的 dump
     expect(pg.dumpCalls).toHaveLength(0);
+  });
+});
+
+describe("兼容早期配置里的 custom 写法", () => {
+  test("配置里写 custom 时按 dump 处理，产物扩展名仍是 .dump", async () => {
+    const configPath = path.join(root, "legacy-config.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        defaults: {
+          outDir,
+          format: "custom",
+          keep: 14,
+          pgBinDir: makeFakePgBinDir(root),
+        },
+        sources: [
+          {
+            name: "manygames-local",
+            url: "postgresql://u:p@localhost:5490/manygames",
+          },
+        ],
+      })
+    );
+    const pg = fakePgTools({ contents: VALID_CUSTOM });
+
+    const result = await runBackup(
+      { sourceName: "manygames-local" },
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.format).toBe("dump");
+    expect(path.extname(result.file)).toBe(".dump");
+  });
+
+  test("数据源上写 custom 同样被读成 dump", async () => {
+    const configPath = path.join(root, "legacy-source.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        defaults: { outDir, format: "sql", pgBinDir: makeFakePgBinDir(root) },
+        sources: [
+          {
+            name: "manygames-local",
+            url: "postgresql://u:p@localhost:5490/manygames",
+            format: "custom",
+          },
+        ],
+      })
+    );
+    const pg = fakePgTools({ contents: VALID_CUSTOM });
+
+    const result = await runBackup(
+      { sourceName: "manygames-local" },
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
+    );
+
+    expect(result.ok && result.format).toBe("dump");
   });
 });

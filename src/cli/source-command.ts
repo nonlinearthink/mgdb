@@ -9,14 +9,14 @@ import {
   updateSource,
 } from "../core/config.ts";
 import { describeConnection, parsePgUrl } from "../core/datasource.ts";
-import type { BackupFormat, DataSource } from "../core/types.ts";
+import { type DataSource, normalizeBackupFormat } from "../core/types.ts";
 
 export const SOURCE_USAGE = `mgdb source — 数据源管理
 
 用法：
   mgdb source list
-  mgdb source add --name <名字> --url <连接串> [--out <目录>] [--format sql|custom] [--keep <份数>]
-  mgdb source edit --name <名字> [--url <连接串>] [--out <目录>] [--format sql|custom] [--keep <份数>]
+  mgdb source add --name <名字> --url <连接串> [--out <目录>] [--format sql|dump] [--keep <份数>]
+  mgdb source edit --name <名字> [--url <连接串>] [--out <目录>] [--format sql|dump] [--keep <份数>]
   mgdb source remove --name <名字>
 `;
 
@@ -54,10 +54,11 @@ function collectOverrides(options: SourceOptions): Overrides | string {
   const overrides: Overrides = {};
   if (options.out !== undefined) overrides.outDir = options.out;
   if (options.format !== undefined) {
-    if (options.format !== "sql" && options.format !== "custom") {
-      return `--format 只能是 sql 或 custom，收到的是 ${options.format}`;
+    const normalized = normalizeBackupFormat(options.format);
+    if (!normalized) {
+      return `--format 只能是 sql 或 dump，收到的是 ${options.format}`;
     }
-    overrides.format = options.format as BackupFormat;
+    overrides.format = normalized;
   }
   if (options.keep !== undefined) {
     const keep = Number(options.keep);

@@ -8,11 +8,11 @@ import {
 import os from "node:os";
 import path from "node:path";
 import {
-  type BackupFormat,
   type Config,
   type DataSource,
   type Defaults,
   err,
+  normalizeBackupFormat,
   ok,
   type Result,
 } from "./types.ts";
@@ -41,8 +41,8 @@ export const BUILTIN_DEFAULTS: Defaults = {
   staleAfterDays: 3,
 };
 
-function isFormat(value: unknown): value is BackupFormat {
-  return value === "sql" || value === "custom";
+function isFormat(value: unknown): boolean {
+  return normalizeBackupFormat(value) !== undefined;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -60,7 +60,7 @@ function validateDefaults(raw: unknown, file: string): Result<Defaults> {
     }
   }
   if (raw.format !== undefined && !isFormat(raw.format)) {
-    return err(`defaults.format 只能是 "sql" 或 "custom"：${file}`);
+    return err(`defaults.format 只能是 "sql" 或 "dump"：${file}`);
   }
   if (
     raw.keep !== undefined &&
@@ -81,7 +81,9 @@ function validateDefaults(raw: unknown, file: string): Result<Defaults> {
     ...BUILTIN_DEFAULTS,
     ...(typeof raw.outDir === "string" ? { outDir: raw.outDir } : {}),
     ...(typeof raw.pgBinDir === "string" ? { pgBinDir: raw.pgBinDir } : {}),
-    ...(isFormat(raw.format) ? { format: raw.format } : {}),
+    ...(normalizeBackupFormat(raw.format)
+      ? { format: normalizeBackupFormat(raw.format) }
+      : {}),
     ...(typeof raw.keep === "number" ? { keep: raw.keep } : {}),
     ...(typeof raw.staleAfterDays === "number"
       ? { staleAfterDays: raw.staleAfterDays }
@@ -106,9 +108,7 @@ function validateSource(
     return err(`数据源 ${raw.name} 的 outDir 应当是字符串：${file}`);
   }
   if (raw.format !== undefined && !isFormat(raw.format)) {
-    return err(
-      `数据源 ${raw.name} 的 format 只能是 "sql" 或 "custom"：${file}`
-    );
+    return err(`数据源 ${raw.name} 的 format 只能是 "sql" 或 "dump"：${file}`);
   }
   if (
     raw.keep !== undefined &&
@@ -123,7 +123,9 @@ function validateSource(
     name: raw.name.trim(),
     url: raw.url.trim(),
     ...(typeof raw.outDir === "string" ? { outDir: raw.outDir } : {}),
-    ...(isFormat(raw.format) ? { format: raw.format } : {}),
+    ...(normalizeBackupFormat(raw.format)
+      ? { format: normalizeBackupFormat(raw.format) }
+      : {}),
     ...(typeof raw.keep === "number" ? { keep: raw.keep } : {}),
   });
 }

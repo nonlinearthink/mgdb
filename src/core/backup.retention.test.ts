@@ -332,7 +332,7 @@ describe("latest 指针", () => {
 
     const custom = fakePgTools({ contents: VALID_CUSTOM });
     await runBackup(
-      { sourceName: "manygames-local", format: "custom" },
+      { sourceName: "manygames-local", format: "dump" },
       {
         configPath,
         runPgTool: custom.run,

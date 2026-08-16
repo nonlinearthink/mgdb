@@ -1,5 +1,20 @@
-/** 备份产物格式。`sql` 为纯文本，`custom` 为 pg_dump 自定义压缩格式。 */
-export type BackupFormat = "sql" | "custom";
+/**
+ * 备份产物格式。`sql` 是纯文本，`dump` 是 pgsql 的自定义压缩格式。
+ *
+ * pg_dump 自己管后者叫 "custom"，但那个词脱离上下文毫无意义，
+ * 对外一律用 dump——和产物扩展名也对得上。
+ */
+export const BACKUP_FORMATS = ["sql", "dump"] as const;
+export type BackupFormat = (typeof BACKUP_FORMATS)[number];
+
+/** 兼容早期配置里写的 "custom"，读得进来，写出去一律是 dump */
+export function normalizeBackupFormat(
+  value: unknown
+): BackupFormat | undefined {
+  if (value === "sql") return "sql";
+  if (value === "dump" || value === "custom") return "dump";
+  return undefined;
+}
 
 export interface DataSource {
   name: string;

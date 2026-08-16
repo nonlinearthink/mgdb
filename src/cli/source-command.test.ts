@@ -153,14 +153,14 @@ describe("source add", () => {
       "--out",
       "/tmp/backups",
       "--format",
-      "custom",
+      "dump",
       "--keep",
       "7"
     );
 
     const source = readConfig().sources[0];
     expect(source?.outDir).toBe("/tmp/backups");
-    expect(source?.format).toBe("custom");
+    expect(source?.format).toBe("dump");
     expect(source?.keep).toBe(7);
   });
 
