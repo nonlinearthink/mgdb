@@ -18,6 +18,9 @@ export const SOURCE_USAGE = `mgdb source — 数据源管理
   mgdb source add --name <名字> --url <连接串> [--out <目录>] [--format sql|dump] [--keep <份数>]
   mgdb source edit --name <名字> [--url <连接串>] [--out <目录>] [--format sql|dump] [--keep <份数>]
   mgdb source remove --name <名字>
+
+edit 时给 --out / --format / --keep 传空串表示清除该项覆盖，回到全局默认：
+  mgdb source edit --name manygames-local --keep ""
 `;
 
 interface SourceOptions {
@@ -50,23 +53,42 @@ function parse(argv: string[]): SourceOptions | undefined {
 
 type Overrides = Partial<Pick<DataSource, "outDir" | "format" | "keep">>;
 
+/**
+ * 传空串表示清除这项覆盖、回到全局默认（`--out ""`）。
+ * 键会被显式设成 undefined，updateSource 见到 undefined 就删掉它。
+ */
 function collectOverrides(options: SourceOptions): Overrides | string {
   const overrides: Overrides = {};
-  if (options.out !== undefined) overrides.outDir = options.out;
+
+  if (options.out !== undefined) {
+    overrides.outDir = options.out === "" ? undefined : options.out;
+  }
+
   if (options.format !== undefined) {
-    const normalized = parseBackupFormat(options.format);
-    if (!normalized) {
-      return `--format 只能是 sql 或 dump，收到的是 ${options.format}`;
+    if (options.format === "") {
+      overrides.format = undefined;
+    } else {
+      const normalized = parseBackupFormat(options.format);
+      if (!normalized) {
+        return `--format 只能是 sql 或 dump，收到的是 ${options.format}`;
+      }
+      overrides.format = normalized;
     }
-    overrides.format = normalized;
   }
+
   if (options.keep !== undefined) {
-    const keep = Number(options.keep);
-    if (!Number.isInteger(keep) || keep < 0) {
-      return `--keep 只能是不小于 0 的整数，收到的是 ${options.keep}`;
+    if (options.keep === "") {
+      overrides.keep = undefined;
+    } else {
+      // 必须在转数字之前挡住空串：Number("") 是 0，而 0 是个合法的保留份数
+      const keep = Number(options.keep);
+      if (!Number.isInteger(keep) || keep < 0) {
+        return `--keep 只能是不小于 0 的整数，收到的是 ${options.keep}`;
+      }
+      overrides.keep = keep;
     }
-    overrides.keep = keep;
   }
+
   return overrides;
 }
 

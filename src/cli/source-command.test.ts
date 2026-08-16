@@ -312,3 +312,88 @@ describe("加进来的数据源立刻可用", () => {
     expect(result.err).toContain("mgdb source");
   });
 });
+
+describe("清除覆盖设置：传空串回到全局默认", () => {
+  async function addWithOverrides() {
+    await run(
+      "source",
+      "add",
+      "--name",
+      "local",
+      "--url",
+      URL_WITH_SECRET,
+      "--out",
+      "/tmp/backups",
+      "--format",
+      "dump",
+      "--keep",
+      "7"
+    );
+  }
+
+  test("--keep '' 清除保留份数覆盖", async () => {
+    await addWithOverrides();
+
+    const result = await run("source", "edit", "--name", "local", "--keep", "");
+
+    expect(result.code).toBe(0);
+    expect(readConfig().sources[0]?.keep).toBeUndefined();
+  });
+
+  test("--out '' 清除输出目录覆盖", async () => {
+    await addWithOverrides();
+
+    await run("source", "edit", "--name", "local", "--out", "");
+
+    expect(readConfig().sources[0]?.outDir).toBeUndefined();
+  });
+
+  test("--format '' 清除格式覆盖", async () => {
+    await addWithOverrides();
+
+    await run("source", "edit", "--name", "local", "--format", "");
+
+    expect(readConfig().sources[0]?.format).toBeUndefined();
+  });
+
+  test("清除一项不影响另外两项", async () => {
+    await addWithOverrides();
+
+    await run("source", "edit", "--name", "local", "--keep", "");
+
+    const source = readConfig().sources[0];
+    expect(source?.keep).toBeUndefined();
+    expect(source?.outDir).toBe("/tmp/backups");
+    expect(source?.format).toBe("dump");
+  });
+
+  test("清除后的键真的从配置文件里消失，而不是留个 null", async () => {
+    await addWithOverrides();
+
+    await run("source", "edit", "--name", "local", "--keep", "");
+
+    const raw = JSON.parse(readFileSync(configPath, "utf8"));
+    expect(Object.keys(raw.sources[0])).not.toContain("keep");
+    // defaults.keep 是全局默认值，本来就该留着
+    expect(Object.keys(raw.defaults)).toContain("keep");
+  });
+
+  test("--keep 0 仍然是「永不清理」，不会被当成清除", async () => {
+    await addWithOverrides();
+
+    await run("source", "edit", "--name", "local", "--keep", "0");
+
+    expect(readConfig().sources[0]?.keep).toBe(0);
+  });
+
+  test("没传的那些项一概不动", async () => {
+    await addWithOverrides();
+
+    await run("source", "edit", "--name", "local", "--keep", "3");
+
+    const source = readConfig().sources[0];
+    expect(source?.keep).toBe(3);
+    expect(source?.outDir).toBe("/tmp/backups");
+    expect(source?.format).toBe("dump");
+  });
+});

@@ -210,19 +210,40 @@ export function addSource(config: Config, source: DataSource): Result<Config> {
   return ok({ ...config, sources: [...config.sources, source] });
 }
 
+/**
+ * 改一条数据源。
+ *
+ * patch 里**显式写成 undefined 的键表示删除该项覆盖**，改回继承全局默认。
+ * 单纯的合并做不到这件事：`{...旧, ...新}` 会让 undefined 被旧值顶回去，
+ * 于是「清空输出目录」这类操作永远生效不了。
+ * 想保持某项不变就别把它放进 patch。
+ */
 export function updateSource(
   config: Config,
   name: string,
-  patch: Partial<Omit<DataSource, "name">>
+  patch: Partial<DataSource>
 ): Result<Config> {
   if (!config.sources.some((each) => each.name === name)) {
     return err(`找不到数据源 ${name}。`);
   }
+  if (
+    patch.name !== undefined &&
+    patch.name !== name &&
+    config.sources.some((each) => each.name === patch.name)
+  ) {
+    return err(`已经存在同名数据源 ${patch.name}。`);
+  }
+
   return ok({
     ...config,
-    sources: config.sources.map((each) =>
-      each.name === name ? { ...each, ...patch } : each
-    ),
+    sources: config.sources.map((each) => {
+      if (each.name !== name) return each;
+      const merged: Record<string, unknown> = { ...each, ...patch };
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === undefined) delete merged[key];
+      }
+      return merged as unknown as DataSource;
+    }),
   });
 }
 

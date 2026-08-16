@@ -110,12 +110,14 @@ function toDataSource(draft: Draft): DataSource | string {
   const parsed = parsePgUrl(url);
   if (!parsed.ok) return parsed.error;
 
+  // 三项覆盖一律显式给出：留空就是 undefined，也就是「取消这项覆盖、回到全局默认」。
+  // 用条件展开省略掉空值的话，updateSource 合并时旧值会被顶回来，清空就永远生效不了。
   return {
     name: draft.name.trim(),
     url,
-    ...(draft.outDir.trim() ? { outDir: draft.outDir.trim() } : {}),
-    ...(normalizedFormat ? { format: normalizedFormat } : {}),
-    ...(keep === undefined ? {} : { keep }),
+    outDir: draft.outDir.trim() || undefined,
+    format: normalizedFormat,
+    keep,
   };
 }
 
