@@ -9,6 +9,7 @@ import {
   existsSync,
   lstatSync,
   readdirSync,
+  readFileSync,
   readlinkSync,
   rmSync,
 } from "node:fs";
@@ -365,5 +366,75 @@ describe("latest 指针", () => {
     expect(entriesIn(outDir).filter((n) => n.includes("-latest."))).toEqual([
       "manygames-local-latest.sql",
     ]);
+  });
+});
+
+describe("回归：刚落盘的产物永远不能被本次清理删掉", () => {
+  test("目录里存在时间戳更晚的备份时，新产物仍然活着", async () => {
+    // 时钟回拨、从别处拷回旧目录、手工改名，都会造成「未来时间戳」
+    seedFile(outDir, "manygames-local-20991231-235959.sql", "来自未来");
+    const configPath = writeConfigFile(
+      root,
+      makeConfig(root, { defaults: { outDir, keep: 1 } })
+    );
+
+    const result = await runWith(configPath);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // 报告成功就必须真的留下产物，否则退出码 0 是在撒谎
+    expect(existsSync(result.file)).toBe(true);
+    expect(result.pruned).not.toContain(`manygames-local-${FIXED_STAMP}.sql`);
+    expect(result.pruned).toContain("manygames-local-20991231-235959.sql");
+  });
+
+  test("latest 指针不会因此变成悬空链接", async () => {
+    seedFile(outDir, "manygames-local-20991231-235959.sql", "来自未来");
+    const configPath = writeConfigFile(
+      root,
+      makeConfig(root, { defaults: { outDir, keep: 1 } })
+    );
+
+    await runWith(configPath);
+
+    const link = path.join(outDir, "manygames-local-latest.sql");
+    expect(lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(existsSync(link)).toBe(true);
+  });
+
+  test("keep=1 时旧备份仍然照删，保护不等于放弃清理", async () => {
+    seedHistory(4);
+    const configPath = writeConfigFile(
+      root,
+      makeConfig(root, { defaults: { outDir, keep: 1 } })
+    );
+
+    const result = await runWith(configPath);
+
+    expect(result.ok && result.pruned).toHaveLength(4);
+    expect(backupsIn(outDir)).toEqual([`manygames-local-${FIXED_STAMP}.sql`]);
+  });
+});
+
+describe("latest 指针只碰符号链接", () => {
+  test("同名的普通文件不会被当成旧指针删掉", async () => {
+    const impostor = seedFile(
+      outDir,
+      "manygames-local-latest.sql",
+      "使用者自己放的真数据"
+    );
+    const configPath = writeConfigFile(
+      root,
+      makeConfig(root, { defaults: { outDir, keep: 14 } })
+    );
+
+    const result = await runWith(configPath);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(existsSync(impostor)).toBe(true);
+    expect(readFileSync(impostor, "utf8")).toBe("使用者自己放的真数据");
+    // 动不了就要说出来，不能默默算了
+    expect(result.warnings.some((w) => w.includes("普通文件"))).toBe(true);
   });
 });

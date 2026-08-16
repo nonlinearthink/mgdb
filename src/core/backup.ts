@@ -276,7 +276,7 @@ async function attemptBackup(
     // 清理只在成功之后跑：失败还顺手删旧备份，会同时失去新旧两份
     const keep =
       request.keep ?? dataSource.value.keep ?? config.value.defaults.keep;
-    const pruned = pruneBackups(outDir, source, keep);
+    const pruned = pruneBackups(outDir, source, keep, fileName);
     const latestWarnings = repointLatest(outDir, source, format, fileName);
 
     return {
