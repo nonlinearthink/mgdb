@@ -5,7 +5,7 @@ import { runBackup } from "./backup.ts";
 import {
   defaultSource,
   FIXED_STAMP,
-  fakePgDump,
+  fakePgTools,
   fixedClock,
   makeConfig,
   makeEmptyPgBinDir,
@@ -29,11 +29,11 @@ describe("runBackup — 成功路径", () => {
   test("产出以数据源名和秒级时间戳命名的文件", async () => {
     const config = makeConfig(root);
     const configPath = writeConfigFile(root, config);
-    const pg = fakePgDump();
+    const pg = fakePgTools();
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     expect(result.ok).toBe(true);
@@ -49,11 +49,11 @@ describe("runBackup — 成功路径", () => {
     const outDir = path.join(root, "deep", "nested", "backups");
     const config = makeConfig(root, { defaults: { outDir } });
     const configPath = writeConfigFile(root, config);
-    const pg = fakePgDump();
+    const pg = fakePgTools();
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     expect(result.ok).toBe(true);
@@ -62,11 +62,11 @@ describe("runBackup — 成功路径", () => {
 
   test("连接串被拆成 pg_dump 的各个参数", async () => {
     const configPath = writeConfigFile(root, makeConfig(root));
-    const pg = fakePgDump();
+    const pg = fakePgTools();
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     expect(pg.calls).toHaveLength(1);
@@ -85,11 +85,11 @@ describe("runBackup — 成功路径", () => {
       ],
     });
     const configPath = writeConfigFile(root, config);
-    const pg = fakePgDump();
+    const pg = fakePgTools();
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     const { args } = pg.calls[0]!;
@@ -98,11 +98,11 @@ describe("runBackup — 成功路径", () => {
 
   test("产物不携带源库的属主与权限信息", async () => {
     const configPath = writeConfigFile(root, makeConfig(root));
-    const pg = fakePgDump();
+    const pg = fakePgTools();
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     expect(pg.calls[0]!.args).toContain("--no-owner");
@@ -113,11 +113,11 @@ describe("runBackup — 成功路径", () => {
 describe("runBackup — 密码处理", () => {
   test("密码经环境变量传入，不出现在命令行参数中", async () => {
     const configPath = writeConfigFile(root, makeConfig(root));
-    const pg = fakePgDump();
+    const pg = fakePgTools();
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     const call = pg.calls[0]!;
@@ -134,11 +134,11 @@ describe("runBackup — 密码处理", () => {
       ],
     });
     const configPath = writeConfigFile(root, config);
-    const pg = fakePgDump();
+    const pg = fakePgTools();
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     const call = pg.calls[0]!;
@@ -153,11 +153,11 @@ describe("runBackup — 密码处理", () => {
       ],
     });
     const configPath = writeConfigFile(root, config);
-    const pg = fakePgDump();
+    const pg = fakePgTools();
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     expect(pg.calls[0]!.env.PGPASSWORD).toBeUndefined();
@@ -174,17 +174,17 @@ describe("runBackup — 参数优先级", () => {
     });
     const configPath = writeConfigFile(root, config);
 
-    const first = fakePgDump();
+    const first = fakePgTools();
     const withCli = await runBackup(
       { sourceName: "manygames-local", outDir: cliDir },
-      { configPath, runPgDump: first.run, now: fixedClock }
+      { configPath, runPgTool: first.run, now: fixedClock }
     );
     expect(withCli.ok && path.dirname(withCli.file)).toBe(cliDir);
 
-    const second = fakePgDump();
+    const second = fakePgTools();
     const withoutCli = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: second.run, now: fixedClock }
+      { configPath, runPgTool: second.run, now: fixedClock }
     );
     expect(withoutCli.ok && path.dirname(withoutCli.file)).toBe(sourceDir);
   });
@@ -193,11 +193,11 @@ describe("runBackup — 参数优先级", () => {
     const defaultsDir = path.join(root, "from-defaults");
     const config = makeConfig(root, { defaults: { outDir: defaultsDir } });
     const configPath = writeConfigFile(root, config);
-    const pg = fakePgDump();
+    const pg = fakePgTools();
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     expect(result.ok && path.dirname(result.file)).toBe(defaultsDir);
@@ -206,13 +206,13 @@ describe("runBackup — 参数优先级", () => {
 
 describe("runBackup — 失败路径", () => {
   test("配置文件不存在时失败在 config 步骤", async () => {
-    const pg = fakePgDump();
+    const pg = fakePgTools();
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
       {
         configPath: path.join(root, "nope.json"),
-        runPgDump: pg.run,
+        runPgTool: pg.run,
         now: fixedClock,
       }
     );
@@ -226,11 +226,11 @@ describe("runBackup — 失败路径", () => {
   test("配置文件内容损坏时失败在 config 步骤且说明原因", async () => {
     const configPath = path.join(root, "config.json");
     writeFileSync(configPath, "{ this is not json");
-    const pg = fakePgDump();
+    const pg = fakePgTools();
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     expect(result.ok).toBe(false);
@@ -241,11 +241,11 @@ describe("runBackup — 失败路径", () => {
 
   test("数据源不存在时失败在 source 步骤并列出可用数据源", async () => {
     const configPath = writeConfigFile(root, makeConfig(root));
-    const pg = fakePgDump();
+    const pg = fakePgTools();
 
     const result = await runBackup(
       { sourceName: "typo-name" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     expect(result.ok).toBe(false);
@@ -259,11 +259,11 @@ describe("runBackup — 失败路径", () => {
       sources: [defaultSource({ url: "mysql://u:p@localhost:3306/manygames" })],
     });
     const configPath = writeConfigFile(root, config);
-    const pg = fakePgDump();
+    const pg = fakePgTools();
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     expect(result.ok).toBe(false);
@@ -275,11 +275,11 @@ describe("runBackup — 失败路径", () => {
   test("未配置输出目录且未传 --out 时失败在 output-dir 步骤", async () => {
     const config = makeConfig(root, { defaults: { outDir: undefined } });
     const configPath = writeConfigFile(root, config);
-    const pg = fakePgDump();
+    const pg = fakePgTools();
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     expect(result.ok).toBe(false);
@@ -292,11 +292,11 @@ describe("runBackup — 失败路径", () => {
       defaults: { pgBinDir: makeEmptyPgBinDir(root) },
     });
     const configPath = writeConfigFile(root, config);
-    const pg = fakePgDump();
+    const pg = fakePgTools();
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     expect(result.ok).toBe(false);
@@ -309,11 +309,11 @@ describe("runBackup — 失败路径", () => {
 
   test("子进程非零退出时判定为失败并带上 stderr", async () => {
     const configPath = writeConfigFile(root, makeConfig(root));
-    const pg = fakePgDump({ code: 1, stderr: "pg_dump: error: 权限不足" });
+    const pg = fakePgTools({ code: 1, stderr: "pg_dump: error: 权限不足" });
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     expect(result.ok).toBe(false);
@@ -324,11 +324,11 @@ describe("runBackup — 失败路径", () => {
 
   test("子进程启动失败时报出可读原因", async () => {
     const configPath = writeConfigFile(root, makeConfig(root));
-    const pg = fakePgDump({ spawnError: "spawn EACCES" });
+    const pg = fakePgTools({ spawnError: "spawn EACCES" });
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     expect(result.ok).toBe(false);
@@ -339,11 +339,11 @@ describe("runBackup — 失败路径", () => {
 
   test("失败时错误上下文带上数据源名", async () => {
     const configPath = writeConfigFile(root, makeConfig(root));
-    const pg = fakePgDump({ code: 2 });
+    const pg = fakePgTools({ code: 2 });
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     expect(result.ok).toBe(false);
@@ -357,11 +357,11 @@ describe("runBackup — 失败路径", () => {
       root,
       makeConfig(root, { defaults: { outDir } })
     );
-    const pg = fakePgDump({ code: 1 });
+    const pg = fakePgTools({ code: 1 });
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     expect(readdirSync(outDir)).toEqual([]);
@@ -375,11 +375,11 @@ describe("runBackup — 子进程收到的产物路径", () => {
       root,
       makeConfig(root, { defaults: { outDir } })
     );
-    const pg = fakePgDump();
+    const pg = fakePgTools();
 
     await runBackup(
       { sourceName: "manygames-local" },
-      { configPath, runPgDump: pg.run, now: fixedClock }
+      { configPath, runPgTool: pg.run, now: fixedClock }
     );
 
     const target = outputPathOf(pg.calls[0]!.args);

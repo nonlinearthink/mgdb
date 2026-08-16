@@ -1,11 +1,25 @@
-import { mkdirSync, statSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+} from "node:fs";
 import path from "node:path";
 import { expandHome, findSource, loadConfig } from "./config.ts";
 import type { PgConnection } from "./datasource.ts";
 import { parsePgUrl } from "./datasource.ts";
 import { backupFileName } from "./naming.ts";
 import { locatePgTool } from "./pg-tools.ts";
-import type { BackupFormat } from "./types.ts";
+import type {
+  BackupFormat,
+  PgToolInvocation,
+  PgToolOutcome,
+  RunPgTool,
+} from "./types.ts";
+import { verifyDump } from "./verify.ts";
+
+export type { PgToolInvocation, PgToolOutcome, RunPgTool } from "./types.ts";
 
 export interface BackupRequest {
   sourceName: string;
@@ -14,27 +28,9 @@ export interface BackupRequest {
   format?: BackupFormat;
 }
 
-export interface PgDumpInvocation {
-  bin: string;
-  args: string[];
-  /** 只放需要额外注入的变量（如 PGPASSWORD），由适配层并进 process.env */
-  env: Record<string, string>;
-}
-
-export interface PgDumpOutcome {
-  code: number | null;
-  stderr: string;
-  /** 可执行文件根本没起来时填这里，code 为 null */
-  spawnError?: string;
-}
-
-export type RunPgDump = (
-  invocation: PgDumpInvocation
-) => Promise<PgDumpOutcome>;
-
 export interface BackupDeps {
   configPath: string;
-  runPgDump: RunPgDump;
+  runPgTool: RunPgTool;
   now: () => Date;
 }
 
@@ -44,7 +40,8 @@ export type BackupStep =
   | "connection"
   | "output-dir"
   | "pg-tool"
-  | "dump";
+  | "dump"
+  | "verify";
 
 export interface BackupFailure {
   step: BackupStep;
@@ -61,12 +58,33 @@ export type BackupResult =
     }
   | { ok: false; source: string; failure: BackupFailure };
 
+const TERMINATION_SIGNALS = ["SIGINT", "SIGTERM"] as const;
+type TerminationSignal = (typeof TERMINATION_SIGNALS)[number];
+
+/**
+ * 在 dump 期间接管中断信号，先清掉临时文件再让进程按默认方式退出。
+ * 没有这一层，Ctrl-C 会在备份目录里留下一个半截产物。
+ */
+function installInterruptCleanup(cleanup: () => void): () => void {
+  const onSignal = (signal: TerminationSignal) => {
+    cleanup();
+    for (const each of TERMINATION_SIGNALS)
+      process.removeListener(each, onSignal);
+    process.kill(process.pid, signal);
+  };
+  for (const each of TERMINATION_SIGNALS) process.on(each, onSignal);
+  return () => {
+    for (const each of TERMINATION_SIGNALS)
+      process.removeListener(each, onSignal);
+  };
+}
+
 function buildInvocation(
   bin: string,
   connection: PgConnection,
   format: BackupFormat,
   target: string
-): PgDumpInvocation {
+): PgToolInvocation {
   const args = [
     "--host",
     connection.host,
@@ -123,8 +141,16 @@ export async function runBackup(
   const format =
     request.format ?? dataSource.value.format ?? config.value.defaults.format;
 
-  const bin = locatePgTool("pg_dump", config.value.defaults.pgBinDir);
-  if (!bin.ok) return fail("pg-tool", bin.error);
+  const dumpBin = locatePgTool("pg_dump", config.value.defaults.pgBinDir);
+  if (!dumpBin.ok) return fail("pg-tool", dumpBin.error);
+
+  // custom 格式要靠 pg_restore 校验。先确认它在，别等跑完几十分钟的 dump 才发现没法校验。
+  let restoreBin: string | undefined;
+  if (format === "custom") {
+    const located = locatePgTool("pg_restore", config.value.defaults.pgBinDir);
+    if (!located.ok) return fail("pg-tool", located.error);
+    restoreBin = located.value;
+  }
 
   try {
     mkdirSync(outDir, { recursive: true });
@@ -135,28 +161,57 @@ export async function runBackup(
     );
   }
 
-  const target = path.join(outDir, backupFileName(source, deps.now(), format));
-  const outcome = await deps.runPgDump(
-    buildInvocation(bin.value, connection.value, format, target)
-  );
+  const fileName = backupFileName(source, deps.now(), format);
+  const target = path.join(outDir, fileName);
+  // 点号开头 + .tmp 结尾：既不会被保留清理当成正式产物，也不会被 latest 指针选中
+  const temp = path.join(outDir, `.${fileName}.tmp`);
 
-  if (outcome.spawnError) {
-    return fail("dump", `启动 pg_dump 失败：${outcome.spawnError}`);
-  }
-  if (outcome.code !== 0) {
-    const detail = outcome.stderr.trim();
-    return fail(
-      "dump",
-      `pg_dump 退出码 ${outcome.code}${detail ? `\n${detail}` : ""}`
-    );
-  }
+  const removeTemp = () => {
+    try {
+      unlinkSync(temp);
+    } catch {
+      // 本来就不存在，不是问题
+    }
+  };
 
-  let bytes: number;
+  const releaseInterrupt = installInterruptCleanup(removeTemp);
+  let renamed = false;
+
   try {
-    bytes = statSync(target).size;
-  } catch {
-    return fail("dump", `pg_dump 报告成功，但产物不存在：${target}`);
-  }
+    let outcome: PgToolOutcome;
+    try {
+      outcome = await deps.runPgTool(
+        buildInvocation(dumpBin.value, connection.value, format, temp)
+      );
+    } catch (cause) {
+      return fail("dump", `pg_dump 执行被打断：${(cause as Error).message}`);
+    }
 
-  return { ok: true, source, format, file: target, bytes };
+    if (outcome.spawnError) {
+      return fail("dump", `启动 pg_dump 失败：${outcome.spawnError}`);
+    }
+    if (outcome.code !== 0) {
+      const detail = outcome.stderr.trim();
+      return fail(
+        "dump",
+        `pg_dump 退出码 ${outcome.code}${detail ? `\n${detail}` : ""}`
+      );
+    }
+    if (!existsSync(temp)) {
+      return fail("dump", `pg_dump 报告成功，但产物不存在：${temp}`);
+    }
+
+    const verified = await verifyDump(temp, format, deps.runPgTool, restoreBin);
+    if (!verified.ok) return fail("verify", verified.error);
+
+    const bytes = statSync(temp).size;
+    // 同目录内的 rename 是原子的：要么正式产物完整出现，要么它压根没出现
+    renameSync(temp, target);
+    renamed = true;
+
+    return { ok: true, source, format, file: target, bytes };
+  } finally {
+    releaseInterrupt();
+    if (!renamed) removeTemp();
+  }
 }

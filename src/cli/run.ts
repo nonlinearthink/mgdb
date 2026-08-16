@@ -1,17 +1,19 @@
 import { parseArgs } from "node:util";
-import { spawnPgDump } from "../adapters/pg-dump.ts";
+import { spawnPgTool } from "../adapters/pg-tool.ts";
 import { runBackup } from "../core/backup.ts";
 import { defaultConfigPath } from "../core/config.ts";
+import type { BackupFormat } from "../core/types.ts";
 
 const USAGE = `mgdb — PostgreSQL 备份工具
 
 用法：
-  mgdb backup --source <数据源名> [--out <目录>]
+  mgdb backup --source <数据源名> [--out <目录>] [--format sql|custom]
   mgdb help
 
 选项：
   -s, --source   要备份的数据源名（必填）
   -o, --out      本次的输出目录，覆盖配置，不写回
+  -f, --format   本次的产物格式，sql 或 custom，覆盖配置，不写回
 
 环境变量：
   MGDB_CONFIG    配置文件位置，默认 ~/.config/mgdb/config.json
@@ -25,20 +27,31 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
+function parseFormat(
+  value: string | undefined
+): BackupFormat | undefined | null {
+  if (value === undefined) return undefined;
+  if (value === "sql" || value === "custom") return value;
+  return null;
+}
+
 async function backupCommand(argv: string[]): Promise<number> {
   let source: string | undefined;
   let out: string | undefined;
+  let rawFormat: string | undefined;
   try {
     const { values } = parseArgs({
       args: argv,
       options: {
         source: { type: "string", short: "s" },
         out: { type: "string", short: "o" },
+        format: { type: "string", short: "f" },
       },
       strict: true,
     });
     source = values.source;
     out = values.out;
+    rawFormat = values.format;
   } catch (cause) {
     console.error(`${(cause as Error).message}\n\n${USAGE}`);
     return 2;
@@ -49,11 +62,21 @@ async function backupCommand(argv: string[]): Promise<number> {
     return 2;
   }
 
+  const format = parseFormat(rawFormat);
+  if (format === null) {
+    console.error(`--format 只能是 sql 或 custom，收到的是 ${rawFormat}`);
+    return 2;
+  }
+
   const result = await runBackup(
-    { sourceName: source, ...(out ? { outDir: out } : {}) },
+    {
+      sourceName: source,
+      ...(out ? { outDir: out } : {}),
+      ...(format ? { format } : {}),
+    },
     {
       configPath: defaultConfigPath(),
-      runPgDump: spawnPgDump,
+      runPgTool: spawnPgTool,
       now: () => new Date(),
     }
   );

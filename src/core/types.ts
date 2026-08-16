@@ -26,6 +26,28 @@ export interface Config {
   sources: DataSource[];
 }
 
+/**
+ * 一次 postgres 命令行工具的调用。pg_dump 与 pg_restore 共用这一个 port，
+ * 所以整个工具只有一个子进程接缝。
+ */
+export interface PgToolInvocation {
+  bin: string;
+  args: string[];
+  /** 只放需要额外注入的变量（如 PGPASSWORD），由适配层并进 process.env */
+  env: Record<string, string>;
+}
+
+export interface PgToolOutcome {
+  code: number | null;
+  stderr: string;
+  /** 可执行文件根本没起来时填这里，code 为 null */
+  spawnError?: string;
+}
+
+export type RunPgTool = (
+  invocation: PgToolInvocation
+) => Promise<PgToolOutcome>;
+
 export type Result<T, E = string> =
   | { ok: true; value: T }
   | { ok: false; error: E };

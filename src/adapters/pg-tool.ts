@@ -1,7 +1,10 @@
-import type { RunPgDump } from "../core/backup.ts";
+import type { RunPgTool } from "../core/types.ts";
 
-/** 真实的备份子进程。测试里被换成假实现，所以这里不含任何业务判断。 */
-export const spawnPgDump: RunPgDump = async (invocation) => {
+/**
+ * 真实的 postgres 命令行工具调用（pg_dump / pg_restore 共用）。
+ * 测试里被换成假实现，所以这里不含任何业务判断。
+ */
+export const spawnPgTool: RunPgTool = async (invocation) => {
   try {
     const proc = Bun.spawn([invocation.bin, ...invocation.args], {
       env: { ...process.env, ...invocation.env },
