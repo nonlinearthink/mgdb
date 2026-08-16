@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# 备份产物绝不进版本控制
+*.sql
+*.dump
+
+# 本机配置（真正的配置在 ~/.config/mgdb/，这里只是兜底）
+config.json
+state.json
