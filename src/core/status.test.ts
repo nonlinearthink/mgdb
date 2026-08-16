@@ -45,6 +45,7 @@ describe("份数与占用", () => {
     seedFile(outDir, "manygames-local-20260802-030000.sql", "12345");
     seedFile(outDir, "manygames-prod-20260801-030000.sql", "别的源");
     seedFile(outDir, "我的笔记.txt", "无关文件");
+    // 旧版本留下的遗留符号链接：不再产生，但目录里可能还有，不该被计入
     symlinkSync(
       "manygames-local-20260802-030000.sql",
       path.join(outDir, "manygames-local-latest.sql")

@@ -30,7 +30,6 @@ const FORMAT_BY_EXTENSION: Record<string, BackupFormat> = {
 };
 
 const BACKUP_FILE = /^(.+)-(\d{8}-\d{6})\.(sql|dump)$/;
-const LATEST_LINK = /^(.+)-latest\.(?:sql|dump)$/;
 
 export interface ParsedBackupName {
   source: string;
@@ -52,12 +51,4 @@ export function parseBackupFileName(
   const format = FORMAT_BY_EXTENSION[extension];
   if (!format) return undefined;
   return { source, stamp, format };
-}
-
-export function latestLinkName(source: string, format: BackupFormat): string {
-  return `${source}-latest.${EXTENSION[format]}`;
-}
-
-export function parseLatestLinkName(name: string): string | undefined {
-  return LATEST_LINK.exec(name)?.[1];
 }

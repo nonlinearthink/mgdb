@@ -1,18 +1,11 @@
 /**
- * 与 backup.test.ts 同一个接缝（runBackup），这里专注保留清理与 latest 指针。
+ * 与 backup.test.ts 同一个接缝（runBackup），这里专注保留清理。
  *
  * 清理是整个工具里唯一会销毁数据的逻辑，所以「哪些必须活着」的断言比
  * 「哪些该被删」更重要——备份目录很可能是 ~/Downloads 这种混杂目录。
  */
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import {
-  existsSync,
-  lstatSync,
-  readdirSync,
-  readFileSync,
-  readlinkSync,
-  rmSync,
-} from "node:fs";
+import { existsSync, readdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { runBackup } from "./backup.ts";
 import {
@@ -25,7 +18,6 @@ import {
   noopNotify,
   seedFile,
   TRUNCATED_SQL,
-  VALID_CUSTOM,
   writeConfigFile,
 } from "./test-harness.ts";
 
@@ -41,13 +33,9 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-function entriesIn(dir: string): string[] {
-  return existsSync(dir) ? readdirSync(dir).sort() : [];
-}
-
-/** 只算真正的备份产物，latest 指针不是一份备份 */
+/** 目录里的一切。不做任何过滤——多出来的东西必须让断言看见。 */
 function backupsIn(dir: string): string[] {
-  return entriesIn(dir).filter((name) => !name.includes("-latest."));
+  return existsSync(dir) ? readdirSync(dir).sort() : [];
 }
 
 function runWith(configPath: string, keep?: number) {
@@ -232,7 +220,7 @@ describe("清理范围：只碰本工具生成的、属于该数据源的文件"
       result.ok && result.pruned.every((n) => n.startsWith("manygames-local-"))
     ).toBe(true);
     expect(
-      entriesIn(outDir).filter((n) => n.startsWith("manygames-prod-"))
+      backupsIn(outDir).filter((n) => n.startsWith("manygames-prod-"))
     ).toHaveLength(5);
   });
 
@@ -261,114 +249,6 @@ describe("清理范围：只碰本工具生成的、属于该数据源的文件"
   });
 });
 
-describe("latest 指针", () => {
-  test("成功后建立指向最新产物的符号链接", async () => {
-    const configPath = writeConfigFile(
-      root,
-      makeConfig(root, { defaults: { outDir, keep: 14 } })
-    );
-
-    await runWith(configPath);
-
-    const link = path.join(outDir, "manygames-local-latest.sql");
-    expect(lstatSync(link).isSymbolicLink()).toBe(true);
-    expect(readlinkSync(link)).toBe(`manygames-local-${FIXED_STAMP}.sql`);
-    expect(existsSync(link)).toBe(true); // 解得开，不是悬空链接
-  });
-
-  test("符号链接不计入保留份数，也不会被清理删掉", async () => {
-    seedHistory(3);
-    const configPath = writeConfigFile(
-      root,
-      makeConfig(root, { defaults: { outDir, keep: 2 } })
-    );
-
-    // 第一次备份建立链接，第二次验证链接没被当成一份备份
-    await runWith(configPath);
-    const result = await runWith(configPath);
-
-    expect(result.ok).toBe(true);
-    const link = path.join(outDir, "manygames-local-latest.sql");
-    expect(lstatSync(link).isSymbolicLink()).toBe(true);
-    expect(result.ok && result.pruned.some((n) => n.includes("latest"))).toBe(
-      false
-    );
-  });
-
-  test("清理之后链接仍然指向存在的文件", async () => {
-    seedHistory(5);
-    const configPath = writeConfigFile(
-      root,
-      makeConfig(root, { defaults: { outDir, keep: 1 } })
-    );
-
-    await runWith(configPath);
-
-    const link = path.join(outDir, "manygames-local-latest.sql");
-    expect(existsSync(link)).toBe(true);
-    expect(readlinkSync(link)).toBe(`manygames-local-${FIXED_STAMP}.sql`);
-  });
-
-  test("切换格式后每个数据源只留一个 latest", async () => {
-    const configPath = writeConfigFile(
-      root,
-      makeConfig(root, { defaults: { outDir, keep: 14 } })
-    );
-
-    const sql = fakePgTools();
-    await runBackup(
-      { sourceName: "manygames-local", format: "sql" },
-      {
-        configPath,
-        runPgTool: sql.run,
-        now: fixedClock,
-        statePath: path.join(root, "state.json"),
-        notify: noopNotify,
-      }
-    );
-    expect(existsSync(path.join(outDir, "manygames-local-latest.sql"))).toBe(
-      true
-    );
-
-    const custom = fakePgTools({ contents: VALID_CUSTOM });
-    await runBackup(
-      { sourceName: "manygames-local", format: "dump" },
-      {
-        configPath,
-        runPgTool: custom.run,
-        now: fixedClock,
-        statePath: path.join(root, "state.json"),
-        notify: noopNotify,
-      }
-    );
-
-    // 旧的 latest.sql 必须消失，否则「最新那份」会指向一份更旧的备份
-    expect(entriesIn(outDir).filter((n) => n.includes("-latest."))).toEqual([
-      "manygames-local-latest.dump",
-    ]);
-    expect(readlinkSync(path.join(outDir, "manygames-local-latest.dump"))).toBe(
-      `manygames-local-${FIXED_STAMP}.dump`
-    );
-  });
-
-  test("其他数据源的 latest 链接不受影响", async () => {
-    seedFile(outDir, "manygames-prod-20260701-030000.sql");
-    const configPath = writeConfigFile(
-      root,
-      makeConfig(root, { defaults: { outDir, keep: 14 } })
-    );
-
-    await runWith(configPath);
-
-    expect(
-      existsSync(path.join(outDir, "manygames-prod-20260701-030000.sql"))
-    ).toBe(true);
-    expect(entriesIn(outDir).filter((n) => n.includes("-latest."))).toEqual([
-      "manygames-local-latest.sql",
-    ]);
-  });
-});
-
 describe("回归：刚落盘的产物永远不能被本次清理删掉", () => {
   test("目录里存在时间戳更晚的备份时，新产物仍然活着", async () => {
     // 时钟回拨、从别处拷回旧目录、手工改名，都会造成「未来时间戳」
@@ -388,20 +268,6 @@ describe("回归：刚落盘的产物永远不能被本次清理删掉", () => {
     expect(result.pruned).toContain("manygames-local-20991231-235959.sql");
   });
 
-  test("latest 指针不会因此变成悬空链接", async () => {
-    seedFile(outDir, "manygames-local-20991231-235959.sql", "来自未来");
-    const configPath = writeConfigFile(
-      root,
-      makeConfig(root, { defaults: { outDir, keep: 1 } })
-    );
-
-    await runWith(configPath);
-
-    const link = path.join(outDir, "manygames-local-latest.sql");
-    expect(lstatSync(link).isSymbolicLink()).toBe(true);
-    expect(existsSync(link)).toBe(true);
-  });
-
   test("keep=1 时旧备份仍然照删，保护不等于放弃清理", async () => {
     seedHistory(4);
     const configPath = writeConfigFile(
@@ -413,28 +279,5 @@ describe("回归：刚落盘的产物永远不能被本次清理删掉", () => {
 
     expect(result.ok && result.pruned).toHaveLength(4);
     expect(backupsIn(outDir)).toEqual([`manygames-local-${FIXED_STAMP}.sql`]);
-  });
-});
-
-describe("latest 指针只碰符号链接", () => {
-  test("同名的普通文件不会被当成旧指针删掉", async () => {
-    const impostor = seedFile(
-      outDir,
-      "manygames-local-latest.sql",
-      "使用者自己放的真数据"
-    );
-    const configPath = writeConfigFile(
-      root,
-      makeConfig(root, { defaults: { outDir, keep: 14 } })
-    );
-
-    const result = await runWith(configPath);
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(existsSync(impostor)).toBe(true);
-    expect(readFileSync(impostor, "utf8")).toBe("使用者自己放的真数据");
-    // 动不了就要说出来，不能默默算了
-    expect(result.warnings.some((w) => w.includes("普通文件"))).toBe(true);
   });
 });

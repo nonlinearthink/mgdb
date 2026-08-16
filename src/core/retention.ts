@@ -1,11 +1,6 @@
-import { lstatSync, readdirSync, symlinkSync, unlinkSync } from "node:fs";
+import { lstatSync, readdirSync, unlinkSync } from "node:fs";
 import path from "node:path";
-import {
-  latestLinkName,
-  parseBackupFileName,
-  parseLatestLinkName,
-} from "./naming.ts";
-import type { BackupFormat } from "./types.ts";
+import { parseBackupFileName } from "./naming.ts";
 
 export interface BackupEntry {
   name: string;
@@ -105,55 +100,4 @@ export function pruneBackups(
   }
 
   return { deleted, warnings };
-}
-
-/**
- * 让 <数据源>-latest.<扩展名> 指向最新产物。
- *
- * 会先清掉该数据源其他格式的旧链接：切换格式后如果留着旧的 latest.sql，
- * 「最新那份」就会指向一份实际更旧的备份，比没有指针更危险。
- */
-export function repointLatest(
-  dir: string,
-  source: string,
-  format: BackupFormat,
-  targetFileName: string
-): string[] {
-  const warnings: string[] = [];
-
-  let names: string[];
-  try {
-    names = readdirSync(dir);
-  } catch (cause) {
-    return [`读不到备份目录，未更新 latest 指针：${(cause as Error).message}`];
-  }
-
-  for (const name of names) {
-    if (parseLatestLinkName(name) !== source) continue;
-    const stale = path.join(dir, name);
-    try {
-      // 只清理符号链接。同名的普通文件可能是使用者自己放的真数据，
-      // 为了挪个指针把它删掉是不可接受的。
-      if (!lstatSync(stale).isSymbolicLink()) {
-        warnings.push(`${name} 是普通文件而不是 latest 指针，未动它`);
-        continue;
-      }
-      unlinkSync(stale);
-    } catch (cause) {
-      warnings.push(
-        `旧的 latest 指针删除失败：${name}（${(cause as Error).message}）`
-      );
-    }
-  }
-
-  try {
-    // 相对目标：整个备份目录搬走后链接依然有效
-    symlinkSync(targetFileName, path.join(dir, latestLinkName(source, format)));
-  } catch (cause) {
-    // latest 只是便利设施（有些文件系统不支持符号链接）。建不起来要说出来，
-    // 但不该把一次已经成功落盘的备份判成失败。
-    warnings.push(`latest 指针创建失败：${(cause as Error).message}`);
-  }
-
-  return warnings;
 }

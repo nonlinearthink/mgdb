@@ -11,7 +11,7 @@ import type { PgConnection } from "./datasource.ts";
 import { parsePgUrl } from "./datasource.ts";
 import { backupFileName } from "./naming.ts";
 import { locatePgTool } from "./pg-tools.ts";
-import { pruneBackups, repointLatest } from "./retention.ts";
+import { pruneBackups } from "./retention.ts";
 import { recordRun } from "./state.ts";
 import type {
   BackupFormat,
@@ -226,7 +226,7 @@ async function attemptBackup(
 
   const fileName = backupFileName(source, at, format);
   const target = path.join(outDir, fileName);
-  // 点号开头 + .tmp 结尾：既不会被保留清理当成正式产物，也不会被 latest 指针选中
+  // 点号开头 + .tmp 结尾：不符合本工具的产物命名规则，不会被保留清理碰到
   const temp = path.join(outDir, `.${fileName}.tmp`);
 
   const removeTemp = () => {
@@ -278,7 +278,6 @@ async function attemptBackup(
     const keep =
       request.keep ?? dataSource.value.keep ?? config.value.defaults.keep;
     const pruned = pruneBackups(outDir, source, keep, fileName);
-    const latestWarnings = repointLatest(outDir, source, format, fileName);
 
     return {
       ok: true,
@@ -287,7 +286,7 @@ async function attemptBackup(
       file: target,
       bytes,
       pruned: pruned.deleted,
-      warnings: [...pruned.warnings, ...latestWarnings],
+      warnings: pruned.warnings,
     };
   } finally {
     releaseInterrupt();

@@ -40,13 +40,9 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-/** 只算真正的备份产物，latest 指针不是一份备份 */
+/** 目录里的一切。不做任何过滤——多出来的东西必须让断言看见。 */
 function backupsIn(dir: string): string[] {
-  return existsSync(dir)
-    ? readdirSync(dir)
-        .filter((name) => !name.includes("-latest."))
-        .sort()
-    : [];
+  return existsSync(dir) ? readdirSync(dir).sort() : [];
 }
 
 describe("原子写入", () => {
