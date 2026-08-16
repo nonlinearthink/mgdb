@@ -3,14 +3,16 @@ import { notifyMacOS } from "../adapters/notify.ts";
 import { spawnPgTool } from "../adapters/pg-tool.ts";
 import { runBackup } from "../core/backup.ts";
 import { defaultConfigPath, loadConfig } from "../core/config.ts";
+import { describeStale, formatBytes, formatDateTime } from "../core/format.ts";
 import { defaultStatePath, loadState } from "../core/state.ts";
-import { collectStatus, type SourceStatus } from "../core/status.ts";
+import { collectStatus } from "../core/status.ts";
 import type { BackupFormat } from "../core/types.ts";
 import { sourceCommand } from "./source-command.ts";
 
 const USAGE = `mgdb — PostgreSQL 备份工具
 
 用法：
+  mgdb                                    进入交互界面（主屏为状态面板）
   mgdb backup --source <数据源名> [--out <目录>] [--format sql|custom] [--keep <份数>]
   mgdb status [--json]
   mgdb source list|add|edit|remove
@@ -26,14 +28,6 @@ const USAGE = `mgdb — PostgreSQL 备份工具
   MGDB_CONFIG    配置文件位置，默认 ~/.config/mgdb/config.json
   MGDB_STATE     状态文件位置，默认 ~/.config/mgdb/state.json
 `;
-
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024)
-    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
-}
 
 function parseFormat(
   value: string | undefined
@@ -122,20 +116,6 @@ async function backupCommand(argv: string[]): Promise<number> {
   return 0;
 }
 
-function formatTime(at: Date | undefined): string {
-  if (!at) return "从未成功";
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(
-    at.getHours()
-  )}:${pad(at.getMinutes())}`;
-}
-
-function describeStale(status: SourceStatus): string {
-  if (status.neverSucceeded) return "⚠ 从未成功备份过";
-  if (status.stale) return `⚠ 已 ${status.daysSinceSuccess} 天没有成功备份`;
-  return "正常";
-}
-
 function statusCommand(argv: string[]): number {
   let asJson = false;
   try {
@@ -177,7 +157,7 @@ function statusCommand(argv: string[]): number {
     console.log(
       [
         status.name.padEnd(width),
-        formatTime(status.lastSuccessAt).padEnd(16),
+        formatDateTime(status.lastSuccessAt).padEnd(16),
         `${String(status.count).padStart(3)} 份`,
         formatBytes(status.bytes).padStart(9),
         describeStale(status),
@@ -207,10 +187,11 @@ export async function main(argv: string[]): Promise<number> {
     case "-h":
       console.log(USAGE);
       return 0;
-    case undefined:
-      // 交互界面在后续 ticket 引入，届时这里改为动态引入 Ink
-      console.log(USAGE);
-      return 0;
+    case undefined: {
+      // 动态引入：带参数的命令行路径不加载 Ink 与 React 运行时
+      const { startTui } = await import("../tui/start.tsx");
+      return startTui();
+    }
     default:
       console.error(`未知命令：${command}\n\n${USAGE}`);
       return 2;

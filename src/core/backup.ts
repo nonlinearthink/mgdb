@@ -38,6 +38,11 @@ export interface BackupDeps {
   runPgTool: RunPgTool;
   notify: Notify;
   now: () => Date;
+  /**
+   * 临时文件路径一确定就回调。界面靠它显示「产物已经长到多大」——
+   * pg_dump 不吐进度，文件大小是唯一真实可观测的进展。
+   */
+  onTempFile?: (tempFile: string) => void;
 }
 
 export type BackupStep =
@@ -230,6 +235,8 @@ async function attemptBackup(
       // 本来就不存在，不是问题
     }
   };
+
+  deps.onTempFile?.(temp);
 
   const releaseInterrupt = installInterruptCleanup(removeTemp);
   let renamed = false;

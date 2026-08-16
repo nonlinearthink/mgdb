@@ -71,3 +71,13 @@ export function parsePgUrl(raw: string): Result<PgConnection> {
 export function describeConnection(connection: PgConnection): string {
   return `${connection.user}@${connection.host}:${connection.port}/${connection.database}`;
 }
+
+/** 逐字段编辑之后重新拼回连接串。各段都要编码，否则密码里的 @ 会把连接串拆坏。 */
+export function buildPgUrl(connection: PgConnection): string {
+  const auth = connection.password
+    ? `${encodeURIComponent(connection.user)}:${encodeURIComponent(connection.password)}`
+    : encodeURIComponent(connection.user);
+  return `postgresql://${auth}@${connection.host}:${connection.port}/${encodeURIComponent(
+    connection.database
+  )}`;
+}
