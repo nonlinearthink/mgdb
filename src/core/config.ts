@@ -12,8 +12,8 @@ import {
   type DataSource,
   type Defaults,
   err,
-  normalizeBackupFormat,
   ok,
+  parseBackupFormat,
   type Result,
 } from "./types.ts";
 
@@ -42,7 +42,7 @@ export const BUILTIN_DEFAULTS: Defaults = {
 };
 
 function isFormat(value: unknown): boolean {
-  return normalizeBackupFormat(value) !== undefined;
+  return parseBackupFormat(value) !== undefined;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -81,8 +81,8 @@ function validateDefaults(raw: unknown, file: string): Result<Defaults> {
     ...BUILTIN_DEFAULTS,
     ...(typeof raw.outDir === "string" ? { outDir: raw.outDir } : {}),
     ...(typeof raw.pgBinDir === "string" ? { pgBinDir: raw.pgBinDir } : {}),
-    ...(normalizeBackupFormat(raw.format)
-      ? { format: normalizeBackupFormat(raw.format) }
+    ...(parseBackupFormat(raw.format)
+      ? { format: parseBackupFormat(raw.format) }
       : {}),
     ...(typeof raw.keep === "number" ? { keep: raw.keep } : {}),
     ...(typeof raw.staleAfterDays === "number"
@@ -123,8 +123,8 @@ function validateSource(
     name: raw.name.trim(),
     url: raw.url.trim(),
     ...(typeof raw.outDir === "string" ? { outDir: raw.outDir } : {}),
-    ...(normalizeBackupFormat(raw.format)
-      ? { format: normalizeBackupFormat(raw.format) }
+    ...(parseBackupFormat(raw.format)
+      ? { format: parseBackupFormat(raw.format) }
       : {}),
     ...(typeof raw.keep === "number" ? { keep: raw.keep } : {}),
   });

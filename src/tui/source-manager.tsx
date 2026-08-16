@@ -16,7 +16,7 @@ import {
 import {
   type Config,
   type DataSource,
-  normalizeBackupFormat,
+  parseBackupFormat,
 } from "../core/types.ts";
 import { Hint, SelectList, TextField } from "./widgets.tsx";
 
@@ -86,7 +86,7 @@ function toDataSource(draft: Draft): DataSource | string {
     return `端口非法：${draft.port}`;
   }
   const normalizedFormat = draft.format
-    ? normalizeBackupFormat(draft.format)
+    ? parseBackupFormat(draft.format)
     : undefined;
   if (draft.format && !normalizedFormat) {
     return `格式只能是 sql 或 dump，收到的是 ${draft.format}`;

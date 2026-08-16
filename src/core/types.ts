@@ -7,13 +7,10 @@
 export const BACKUP_FORMATS = ["sql", "dump"] as const;
 export type BackupFormat = (typeof BACKUP_FORMATS)[number];
 
-/** 兼容早期配置里写的 "custom"，读得进来，写出去一律是 dump */
-export function normalizeBackupFormat(
-  value: unknown
-): BackupFormat | undefined {
-  if (value === "sql") return "sql";
-  if (value === "dump" || value === "custom") return "dump";
-  return undefined;
+export function parseBackupFormat(value: unknown): BackupFormat | undefined {
+  return BACKUP_FORMATS.includes(value as BackupFormat)
+    ? (value as BackupFormat)
+    : undefined;
 }
 
 export interface DataSource {

@@ -13,7 +13,7 @@ import {
 import path from "node:path";
 import { runBackup } from "./backup.ts";
 import {
-  BOGUS_CUSTOM,
+  BOGUS_DUMP,
   defaultSource,
   FIXED_STAMP,
   fakePgTools,
@@ -24,7 +24,7 @@ import {
   noopNotify,
   outputPathOf,
   TRUNCATED_SQL,
-  VALID_CUSTOM,
+  VALID_DUMP,
   writeConfigFile,
 } from "./test-harness.ts";
 
@@ -259,7 +259,7 @@ describe("格式感知校验", () => {
       root,
       makeConfig(root, { defaults: { outDir, format: "dump" } })
     );
-    const pg = fakePgTools({ contents: VALID_CUSTOM });
+    const pg = fakePgTools({ contents: VALID_DUMP });
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
@@ -283,7 +283,7 @@ describe("格式感知校验", () => {
       root,
       makeConfig(root, { defaults: { outDir, format: "dump" } })
     );
-    const pg = fakePgTools({ contents: VALID_CUSTOM, restoreListCode: 1 });
+    const pg = fakePgTools({ contents: VALID_DUMP, restoreListCode: 1 });
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
@@ -307,7 +307,7 @@ describe("格式感知校验", () => {
       root,
       makeConfig(root, { defaults: { outDir, format: "dump" } })
     );
-    const pg = fakePgTools({ contents: BOGUS_CUSTOM });
+    const pg = fakePgTools({ contents: BOGUS_DUMP });
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
@@ -354,7 +354,7 @@ describe("格式选择", () => {
       root,
       makeConfig(root, { defaults: { outDir } })
     );
-    const pg = fakePgTools({ contents: VALID_CUSTOM });
+    const pg = fakePgTools({ contents: VALID_DUMP });
 
     const result = await runBackup(
       { sourceName: "manygames-local", format: "dump" },
@@ -384,7 +384,7 @@ describe("格式选择", () => {
       })
     );
 
-    const inherited = fakePgTools({ contents: VALID_CUSTOM });
+    const inherited = fakePgTools({ contents: VALID_DUMP });
     const fromSource = await runBackup(
       { sourceName: "manygames-local" },
       {
@@ -422,7 +422,7 @@ describe("格式选择", () => {
         },
       })
     );
-    const pg = fakePgTools({ contents: VALID_CUSTOM });
+    const pg = fakePgTools({ contents: VALID_DUMP });
 
     const result = await runBackup(
       { sourceName: "manygames-local" },
@@ -441,76 +441,5 @@ describe("格式选择", () => {
     expect(result.failure.message).toContain("pg_restore");
     // 校验工具不到位就别浪费一次可能几十分钟的 dump
     expect(pg.dumpCalls).toHaveLength(0);
-  });
-});
-
-describe("兼容早期配置里的 custom 写法", () => {
-  test("配置里写 custom 时按 dump 处理，产物扩展名仍是 .dump", async () => {
-    const configPath = path.join(root, "legacy-config.json");
-    writeFileSync(
-      configPath,
-      JSON.stringify({
-        defaults: {
-          outDir,
-          format: "custom",
-          keep: 14,
-          pgBinDir: makeFakePgBinDir(root),
-        },
-        sources: [
-          {
-            name: "manygames-local",
-            url: "postgresql://u:p@localhost:5490/manygames",
-          },
-        ],
-      })
-    );
-    const pg = fakePgTools({ contents: VALID_CUSTOM });
-
-    const result = await runBackup(
-      { sourceName: "manygames-local" },
-      {
-        configPath,
-        runPgTool: pg.run,
-        now: fixedClock,
-        statePath: path.join(root, "state.json"),
-        notify: noopNotify,
-      }
-    );
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.format).toBe("dump");
-    expect(path.extname(result.file)).toBe(".dump");
-  });
-
-  test("数据源上写 custom 同样被读成 dump", async () => {
-    const configPath = path.join(root, "legacy-source.json");
-    writeFileSync(
-      configPath,
-      JSON.stringify({
-        defaults: { outDir, format: "sql", pgBinDir: makeFakePgBinDir(root) },
-        sources: [
-          {
-            name: "manygames-local",
-            url: "postgresql://u:p@localhost:5490/manygames",
-            format: "custom",
-          },
-        ],
-      })
-    );
-    const pg = fakePgTools({ contents: VALID_CUSTOM });
-
-    const result = await runBackup(
-      { sourceName: "manygames-local" },
-      {
-        configPath,
-        runPgTool: pg.run,
-        now: fixedClock,
-        statePath: path.join(root, "state.json"),
-        notify: noopNotify,
-      }
-    );
-
-    expect(result.ok && result.format).toBe("dump");
   });
 });

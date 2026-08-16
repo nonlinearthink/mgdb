@@ -36,7 +36,6 @@ function parseFormat(
 ): BackupFormat | undefined | null {
   if (value === undefined) return undefined;
   if (value === "sql" || value === "dump") return value;
-  if (value === "custom") return "dump"; // 兼容早期写法
   return null;
 }
 

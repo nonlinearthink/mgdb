@@ -9,7 +9,7 @@ import {
   updateSource,
 } from "../core/config.ts";
 import { describeConnection, parsePgUrl } from "../core/datasource.ts";
-import { type DataSource, normalizeBackupFormat } from "../core/types.ts";
+import { type DataSource, parseBackupFormat } from "../core/types.ts";
 
 export const SOURCE_USAGE = `mgdb source — 数据源管理
 
@@ -54,7 +54,7 @@ function collectOverrides(options: SourceOptions): Overrides | string {
   const overrides: Overrides = {};
   if (options.out !== undefined) overrides.outDir = options.out;
   if (options.format !== undefined) {
-    const normalized = normalizeBackupFormat(options.format);
+    const normalized = parseBackupFormat(options.format);
     if (!normalized) {
       return `--format 只能是 sql 或 dump，收到的是 ${options.format}`;
     }

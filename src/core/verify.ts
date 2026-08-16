@@ -8,7 +8,7 @@ import {
 
 /** pg_dump 写在纯 SQL 产物最末尾的收尾标记，写完整了才有 */
 const SQL_COMPLETION_MARKER = "-- PostgreSQL database dump complete";
-/** custom 格式产物的文件头魔数 */
+/** dump 格式产物的文件头魔数 */
 const CUSTOM_MAGIC = "PGDMP";
 const TAIL_BYTES = 8192;
 
@@ -17,7 +17,7 @@ const TAIL_BYTES = 8192;
  *
  * 需要说明边界：主要的失败信号仍然是 pg_dump 的退出码——网断、盘满都会让它非零退出。
  * 这里挡的是「退出码 0 但产物不对劲」的情况：纯 SQL 缺收尾标记是可靠的截断判据；
- * custom 格式则先看魔数、再让 pg_restore 读一遍目录，能挡住格式不对和文件头损坏，
+ * dump 格式则先看魔数、再让 pg_restore 读一遍目录，能挡住格式不对和文件头损坏，
  * 但读目录只碰 TOC，挡不住数据段中途被截断——那种情况靠退出码。
  */
 export async function verifyDump(
@@ -46,13 +46,13 @@ export async function verifyDump(
   const head = await handle.slice(0, CUSTOM_MAGIC.length).text();
   if (head !== CUSTOM_MAGIC) {
     return err(
-      `产物开头不是 custom 格式的 ${CUSTOM_MAGIC} 魔数（实际是 ${JSON.stringify(head)}）。\n` +
+      `产物开头不是 dump 格式的 ${CUSTOM_MAGIC} 魔数（实际是 ${JSON.stringify(head)}）。\n` +
         `已丢弃该产物，任何已有备份都未被触碰。`
     );
   }
 
   if (!pgRestoreBin) {
-    return err("缺少 pg_restore，无法校验 custom 格式产物");
+    return err("缺少 pg_restore，无法校验 dump 格式产物");
   }
 
   const outcome = await runPgTool({
