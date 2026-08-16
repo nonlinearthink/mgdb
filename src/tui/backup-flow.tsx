@@ -91,6 +91,11 @@ function Done({
           </Text>
         ))}
         <Text dimColor>已有备份未受任何影响。</Text>
+        {result.warnings.map((warning) => (
+          <Text key={warning} color="yellow">
+            注意：{warning}
+          </Text>
+        ))}
         <Hint>按任意键返回。</Hint>
       </Box>
     );

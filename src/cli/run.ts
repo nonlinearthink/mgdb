@@ -105,6 +105,7 @@ async function backupCommand(argv: string[]): Promise<number> {
       `备份失败（数据源 ${result.source}，环节 ${result.failure.step}）`
     );
     console.error(result.failure.message);
+    for (const warning of result.warnings) console.warn(`注意：${warning}`);
     return 1;
   }
 

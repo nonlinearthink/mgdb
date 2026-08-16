@@ -268,3 +268,52 @@ describe("失败通知", () => {
     expect(loadState(statePath).sources["manygames-local"]?.ok).toBe(false);
   });
 });
+
+describe("失败时状态也写不进去，这件事本身要说出来", () => {
+  test("失败结果带上「状态未能写入」的警告", async () => {
+    const configPath = config();
+    const blocked = path.join(root, "state-as-dir");
+    mkdirSync(blocked, { recursive: true });
+    const pg = fakePgTools({ code: 1 });
+    const notifier = fakeNotify();
+
+    const result = await runBackup(
+      { sourceName: "manygames-local" },
+      {
+        configPath,
+        statePath: blocked,
+        runPgTool: pg.run,
+        notify: notifier.notify,
+        now: fixedClock,
+      }
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    // 备份失败本身报得好好的，丢的是「这次失败没能被记进历史」这一条。
+    // 不说出来的话，status 会继续显示上一次成功、状态正常。
+    expect(result.failure.step).toBe("dump");
+    expect(result.warnings.some((w) => w.includes("状态未能写入"))).toBe(true);
+  });
+
+  test("状态写得进去时，失败结果不带多余警告", async () => {
+    const configPath = config();
+    const pg = fakePgTools({ code: 1 });
+    const notifier = fakeNotify();
+
+    const result = await runBackup(
+      { sourceName: "manygames-local" },
+      {
+        configPath,
+        statePath,
+        runPgTool: pg.run,
+        notify: notifier.notify,
+        now: fixedClock,
+      }
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.warnings).toEqual([]);
+  });
+});

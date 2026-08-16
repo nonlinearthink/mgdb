@@ -1,5 +1,5 @@
 import { Box, Text, useApp, useInput } from "ink";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { loadConfigOrEmpty } from "../core/config.ts";
 import { loadState } from "../core/state.ts";
 import { collectStatus } from "../core/status.ts";
@@ -19,11 +19,22 @@ export function App({ deps }: { deps: TuiDeps }) {
 
   const reload = useCallback(() => setReloads((n) => n + 1), []);
 
-  const loaded = loadConfigOrEmpty(deps.configPath);
-  const config: Config = loaded.ok
-    ? loaded.value
-    : { defaults: { format: "sql", keep: 14, staleAfterDays: 3 }, sources: [] };
-  const statuses = collectStatus(config, loadState(deps.statePath), new Date());
+  // 读配置和扫描整个备份目录都是同步 I/O。组件函数每次重画都会跑一遍，
+  // 所以必须挂在 reloads 上：只有按 r 刷新、或增删改完数据源才重新读盘。
+  const { config, statuses, loadError } = useMemo(() => {
+    const loaded = loadConfigOrEmpty(deps.configPath);
+    const resolved: Config = loaded.ok
+      ? loaded.value
+      : {
+          defaults: { format: "sql", keep: 14, staleAfterDays: 3 },
+          sources: [],
+        };
+    return {
+      config: resolved,
+      statuses: collectStatus(resolved, loadState(deps.statePath), new Date()),
+      loadError: loaded.ok ? undefined : loaded.error,
+    };
+  }, [deps.configPath, deps.statePath, reloads]);
 
   useInput(
     (input) => {
@@ -79,7 +90,7 @@ export function App({ deps }: { deps: TuiDeps }) {
   return (
     <Box flexDirection="column">
       {header}
-      {loaded.ok ? null : <Text color="red">{loaded.error}</Text>}
+      {loadError ? <Text color="red">{loadError}</Text> : null}
       <StatusPanel statuses={statuses} />
       <Box marginTop={1}>
         <Hint>b 备份　s 数据源管理　r 刷新　q 退出</Hint>

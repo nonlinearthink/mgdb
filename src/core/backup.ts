@@ -71,7 +71,13 @@ export type BackupResult =
       /** 不足以让备份判负、但使用者应当知道的问题 */
       warnings: string[];
     }
-  | { ok: false; source: string; failure: BackupFailure };
+  | {
+      ok: false;
+      source: string;
+      failure: BackupFailure;
+      /** 失败之外还发生的、使用者应当知道的事（比如这次失败本身没能被记进状态文件） */
+      warnings: string[];
+    };
 
 const TERMINATION_SIGNALS = ["SIGINT", "SIGTERM"] as const;
 type TerminationSignal = (typeof TERMINATION_SIGNALS)[number];
@@ -129,6 +135,11 @@ function firstLine(message: string): string {
   return message.split("\n")[0] ?? message;
 }
 
+function withWarning(result: BackupResult, warning?: string): BackupResult {
+  if (!warning) return result;
+  return { ...result, warnings: [...result.warnings, warning] };
+}
+
 /**
  * 备份的唯一入口。命令行与界面共用它，所以两条路径的行为不可能分叉。
  *
@@ -159,15 +170,12 @@ export async function runBackup(
     } catch {
       // 通知发不出去不改变备份本身的结论
     }
-    return result;
+    // 失败也要把「这次失败没能被记下来」说出去：状态没记上，status 面板
+    // 会继续显示上一次成功、状态正常，直到超期天数到了才标红
+    return withWarning(result, stateWarning);
   }
 
-  return {
-    ...result,
-    warnings: stateWarning
-      ? [...result.warnings, stateWarning]
-      : result.warnings,
-  };
+  return withWarning(result, stateWarning);
 }
 
 async function attemptBackup(
@@ -180,6 +188,7 @@ async function attemptBackup(
     ok: false,
     source,
     failure: { step, message },
+    warnings: [],
   });
 
   const config = loadConfig(deps.configPath);
