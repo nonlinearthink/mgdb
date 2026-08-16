@@ -13,11 +13,8 @@ import {
   type PgConnection,
   parsePgUrl,
 } from "../core/datasource.ts";
-import {
-  type Config,
-  type DataSource,
-  parseBackupFormat,
-} from "../core/types.ts";
+import { parseOverrides } from "../core/overrides.ts";
+import type { Config, DataSource } from "../core/types.ts";
 import { Hint, SelectList, TextField } from "./widgets.tsx";
 
 type Screen =
@@ -85,19 +82,16 @@ function toDataSource(draft: Draft): DataSource | string {
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
     return `端口非法：${draft.port}`;
   }
-  const normalizedFormat = draft.format
-    ? parseBackupFormat(draft.format)
-    : undefined;
-  if (draft.format && !normalizedFormat) {
-    return `格式只能是 sql 或 dump，收到的是 ${draft.format}`;
-  }
-  let keep: number | undefined;
-  if (draft.keep.trim()) {
-    keep = Number(draft.keep);
-    if (!Number.isInteger(keep) || keep < 0) {
-      return `保留份数只能是不小于 0 的整数，收到的是 ${draft.keep}`;
-    }
-  }
+
+  // 三项覆盖的校验与空值语义和命令行共用同一份，避免两边规则漂移。
+  // 表单永远把三项都交出去（可能是空串），所以留空就会被解析成
+  // 显式的 undefined，也就是「取消这项覆盖、回到全局默认」。
+  const overrides = parseOverrides({
+    outDir: draft.outDir,
+    format: draft.format,
+    keep: draft.keep,
+  });
+  if (!overrides.ok) return overrides.error;
 
   const url = buildPgUrl({
     host: draft.host.trim(),
@@ -110,15 +104,7 @@ function toDataSource(draft: Draft): DataSource | string {
   const parsed = parsePgUrl(url);
   if (!parsed.ok) return parsed.error;
 
-  // 三项覆盖一律显式给出：留空就是 undefined，也就是「取消这项覆盖、回到全局默认」。
-  // 用条件展开省略掉空值的话，updateSource 合并时旧值会被顶回来，清空就永远生效不了。
-  return {
-    name: draft.name.trim(),
-    url,
-    outDir: draft.outDir.trim() || undefined,
-    format: normalizedFormat,
-    keep,
-  };
+  return { name: draft.name.trim(), url, ...overrides.value };
 }
 
 export function SourceManager({

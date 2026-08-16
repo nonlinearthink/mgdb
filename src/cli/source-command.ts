@@ -9,7 +9,7 @@ import {
   updateSource,
 } from "../core/config.ts";
 import { describeConnection, parsePgUrl } from "../core/datasource.ts";
-import { type DataSource, parseBackupFormat } from "../core/types.ts";
+import { parseOverrides, type SourceOverrides } from "../core/overrides.ts";
 
 export const SOURCE_USAGE = `mgdb source — 数据源管理
 
@@ -51,45 +51,14 @@ function parse(argv: string[]): SourceOptions | undefined {
   }
 }
 
-type Overrides = Partial<Pick<DataSource, "outDir" | "format" | "keep">>;
-
-/**
- * 传空串表示清除这项覆盖、回到全局默认（`--out ""`）。
- * 键会被显式设成 undefined，updateSource 见到 undefined 就删掉它。
- */
-function collectOverrides(options: SourceOptions): Overrides | string {
-  const overrides: Overrides = {};
-
-  if (options.out !== undefined) {
-    overrides.outDir = options.out === "" ? undefined : options.out;
-  }
-
-  if (options.format !== undefined) {
-    if (options.format === "") {
-      overrides.format = undefined;
-    } else {
-      const normalized = parseBackupFormat(options.format);
-      if (!normalized) {
-        return `--format 只能是 sql 或 dump，收到的是 ${options.format}`;
-      }
-      overrides.format = normalized;
-    }
-  }
-
-  if (options.keep !== undefined) {
-    if (options.keep === "") {
-      overrides.keep = undefined;
-    } else {
-      // 必须在转数字之前挡住空串：Number("") 是 0，而 0 是个合法的保留份数
-      const keep = Number(options.keep);
-      if (!Number.isInteger(keep) || keep < 0) {
-        return `--keep 只能是不小于 0 的整数，收到的是 ${options.keep}`;
-      }
-      overrides.keep = keep;
-    }
-  }
-
-  return overrides;
+/** 校验与空值语义都在 core/overrides.ts，界面用的是同一份 */
+function collectOverrides(options: SourceOptions): SourceOverrides | string {
+  const parsed = parseOverrides({
+    ...(options.out === undefined ? {} : { outDir: options.out }),
+    ...(options.format === undefined ? {} : { format: options.format }),
+    ...(options.keep === undefined ? {} : { keep: options.keep }),
+  });
+  return parsed.ok ? parsed.value : parsed.error;
 }
 
 /** 回显解析结果供确认。密码永远不出现在这里。 */
