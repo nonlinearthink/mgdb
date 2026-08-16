@@ -11,6 +11,7 @@ import type { PgConnection } from "./datasource.ts";
 import { parsePgUrl } from "./datasource.ts";
 import { backupFileName } from "./naming.ts";
 import { locatePgTool } from "./pg-tools.ts";
+import { pruneBackups, repointLatest } from "./retention.ts";
 import type {
   BackupFormat,
   PgToolInvocation,
@@ -23,9 +24,10 @@ export type { PgToolInvocation, PgToolOutcome, RunPgTool } from "./types.ts";
 
 export interface BackupRequest {
   sourceName: string;
-  /** 单次覆盖，不写回配置 */
+  /** 以下三项都是单次覆盖，不写回配置 */
   outDir?: string;
   format?: BackupFormat;
+  keep?: number;
 }
 
 export interface BackupDeps {
@@ -55,6 +57,10 @@ export type BackupResult =
       format: BackupFormat;
       file: string;
       bytes: number;
+      /** 本次清理掉的旧备份文件名，删除动作必须可见 */
+      pruned: string[];
+      /** 不足以让备份判负、但使用者应当知道的问题 */
+      warnings: string[];
     }
   | { ok: false; source: string; failure: BackupFailure };
 
@@ -209,7 +215,21 @@ export async function runBackup(
     renameSync(temp, target);
     renamed = true;
 
-    return { ok: true, source, format, file: target, bytes };
+    // 清理只在成功之后跑：失败还顺手删旧备份，会同时失去新旧两份
+    const keep =
+      request.keep ?? dataSource.value.keep ?? config.value.defaults.keep;
+    const pruned = pruneBackups(outDir, source, keep);
+    const latestWarnings = repointLatest(outDir, source, format, fileName);
+
+    return {
+      ok: true,
+      source,
+      format,
+      file: target,
+      bytes,
+      pruned: pruned.deleted,
+      warnings: [...pruned.warnings, ...latestWarnings],
+    };
   } finally {
     releaseInterrupt();
     if (!renamed) removeTemp();

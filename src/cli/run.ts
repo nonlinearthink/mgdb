@@ -7,13 +7,14 @@ import type { BackupFormat } from "../core/types.ts";
 const USAGE = `mgdb — PostgreSQL 备份工具
 
 用法：
-  mgdb backup --source <数据源名> [--out <目录>] [--format sql|custom]
+  mgdb backup --source <数据源名> [--out <目录>] [--format sql|custom] [--keep <份数>]
   mgdb help
 
 选项：
   -s, --source   要备份的数据源名（必填）
   -o, --out      本次的输出目录，覆盖配置，不写回
   -f, --format   本次的产物格式，sql 或 custom，覆盖配置，不写回
+      --keep     本次保留的备份份数，0 表示不清理，覆盖配置，不写回
 
 环境变量：
   MGDB_CONFIG    配置文件位置，默认 ~/.config/mgdb/config.json
@@ -39,6 +40,7 @@ async function backupCommand(argv: string[]): Promise<number> {
   let source: string | undefined;
   let out: string | undefined;
   let rawFormat: string | undefined;
+  let rawKeep: string | undefined;
   try {
     const { values } = parseArgs({
       args: argv,
@@ -46,12 +48,14 @@ async function backupCommand(argv: string[]): Promise<number> {
         source: { type: "string", short: "s" },
         out: { type: "string", short: "o" },
         format: { type: "string", short: "f" },
+        keep: { type: "string" },
       },
       strict: true,
     });
     source = values.source;
     out = values.out;
     rawFormat = values.format;
+    rawKeep = values.keep;
   } catch (cause) {
     console.error(`${(cause as Error).message}\n\n${USAGE}`);
     return 2;
@@ -68,11 +72,21 @@ async function backupCommand(argv: string[]): Promise<number> {
     return 2;
   }
 
+  let keep: number | undefined;
+  if (rawKeep !== undefined) {
+    keep = Number(rawKeep);
+    if (!Number.isInteger(keep) || keep < 0) {
+      console.error(`--keep 只能是不小于 0 的整数，收到的是 ${rawKeep}`);
+      return 2;
+    }
+  }
+
   const result = await runBackup(
     {
       sourceName: source,
       ...(out ? { outDir: out } : {}),
       ...(format ? { format } : {}),
+      ...(keep === undefined ? {} : { keep }),
     },
     {
       configPath: defaultConfigPath(),
@@ -90,6 +104,12 @@ async function backupCommand(argv: string[]): Promise<number> {
   }
 
   console.log(`备份完成：${result.file}（${formatBytes(result.bytes)}）`);
+  if (result.pruned.length > 0) {
+    // 删除动作必须可见，不能静默发生
+    console.log(`已清理 ${result.pruned.length} 份旧备份：`);
+    for (const name of result.pruned) console.log(`  - ${name}`);
+  }
+  for (const warning of result.warnings) console.warn(`注意：${warning}`);
   return 0;
 }
 
