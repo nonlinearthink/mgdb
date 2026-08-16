@@ -41,13 +41,13 @@ function stateWith(sources: State["sources"]): State {
 
 describe("份数与占用", () => {
   test("只统计本工具生成的、属于该数据源的产物", () => {
-    seedFile(outDir, "manygames-local-20260801-030000.sql", "12345");
-    seedFile(outDir, "manygames-local-20260802-030000.sql", "12345");
-    seedFile(outDir, "manygames-prod-20260801-030000.sql", "别的源");
+    seedFile(outDir, "manygames-20260801-030000.sql", "12345");
+    seedFile(outDir, "manygames-20260802-030000.sql", "12345");
+    seedFile(outDir, "manygames_dev-20260801-030000.sql", "别的源");
     seedFile(outDir, "我的笔记.txt", "无关文件");
     // 旧版本留下的遗留符号链接：不再产生，但目录里可能还有，不该被计入
     symlinkSync(
-      "manygames-local-20260802-030000.sql",
+      "manygames-20260802-030000.sql",
       path.join(outDir, "manygames-local-latest.sql")
     );
 
@@ -76,8 +76,8 @@ describe("份数与占用", () => {
 
   test("数据源上的输出目录覆盖全局默认值", () => {
     const own = path.join(root, "own-dir");
-    seedFile(own, "manygames-local-20260801-030000.sql");
-    seedFile(outDir, "manygames-local-20260802-030000.sql");
+    seedFile(own, "manygames-20260801-030000.sql");
+    seedFile(outDir, "manygames-20260802-030000.sql");
 
     const config = makeConfig(root, {
       defaults: { outDir },
@@ -173,7 +173,7 @@ describe("多数据源", () => {
       defaults: { outDir },
       sources: [
         defaultSource({ name: "manygames-local" }),
-        defaultSource({ name: "manygames-prod" }),
+        defaultSource({ name: "manygames_dev" }),
       ],
     });
 
@@ -181,7 +181,7 @@ describe("多数据源", () => {
 
     expect(statuses.map((s) => s.name)).toEqual([
       "manygames-local",
-      "manygames-prod",
+      "manygames_dev",
     ]);
   });
 
@@ -190,7 +190,7 @@ describe("多数据源", () => {
       defaults: { outDir, staleAfterDays: 3 },
       sources: [
         defaultSource({ name: "manygames-local" }),
-        defaultSource({ name: "manygames-prod" }),
+        defaultSource({ name: "manygames_dev" }),
       ],
     });
 

@@ -52,12 +52,12 @@ function runWith(configPath: string, keep?: number) {
   );
 }
 
-/** 造 n 份历史备份，时间戳依次更早 */
-function seedHistory(count: number, source = "manygames-local"): string[] {
+/** 造 n 份历史备份，时间戳依次更早。前缀是数据库名，不是数据源名。 */
+function seedHistory(count: number, prefix = "manygames"): string[] {
   const names: string[] = [];
   for (let index = 0; index < count; index++) {
     const day = String(index + 1).padStart(2, "0");
-    const name = `${source}-202607${day}-030000.sql`;
+    const name = `${prefix}-202607${day}-030000.sql`;
     seedFile(outDir, name);
     names.push(name);
   }
@@ -78,14 +78,14 @@ describe("保留份数", () => {
     if (!result.ok) return;
     // 5 份历史 + 1 份新的 = 6，保留 3 份
     expect(backupsIn(outDir)).toEqual([
-      "manygames-local-20260704-030000.sql",
-      "manygames-local-20260705-030000.sql",
-      `manygames-local-${FIXED_STAMP}.sql`,
+      "manygames-20260704-030000.sql",
+      "manygames-20260705-030000.sql",
+      `manygames-${FIXED_STAMP}.sql`,
     ]);
     expect(result.pruned.sort()).toEqual([
-      "manygames-local-20260701-030000.sql",
-      "manygames-local-20260702-030000.sql",
-      "manygames-local-20260703-030000.sql",
+      "manygames-20260701-030000.sql",
+      "manygames-20260702-030000.sql",
+      "manygames-20260703-030000.sql",
     ]);
   });
 
@@ -161,9 +161,9 @@ describe("保留份数", () => {
   });
 
   test("混合格式时按数据源统一计数", async () => {
-    seedFile(outDir, "manygames-local-20260701-030000.sql");
-    seedFile(outDir, "manygames-local-20260702-030000.dump");
-    seedFile(outDir, "manygames-local-20260703-030000.sql");
+    seedFile(outDir, "manygames-20260701-030000.sql");
+    seedFile(outDir, "manygames-20260702-030000.dump");
+    seedFile(outDir, "manygames-20260703-030000.sql");
     const configPath = writeConfigFile(
       root,
       makeConfig(root, { defaults: { outDir, keep: 2 } })
@@ -172,8 +172,8 @@ describe("保留份数", () => {
     const result = await runWith(configPath);
 
     expect(result.ok && result.pruned.sort()).toEqual([
-      "manygames-local-20260701-030000.sql",
-      "manygames-local-20260702-030000.dump",
+      "manygames-20260701-030000.sql",
+      "manygames-20260702-030000.dump",
     ]);
   });
 });
@@ -184,7 +184,7 @@ describe("清理范围：只碰本工具生成的、属于该数据源的文件"
     seedFile(outDir, "随手放的笔记.txt");
     seedFile(outDir, "manygames-backup.sql"); // 旧脚本留下的命名
     seedFile(outDir, "manygames-local.sql"); // 缺时间戳
-    seedFile(outDir, "manygames-local-2026-07-01.sql"); // 时间戳格式不对
+    seedFile(outDir, "manygames-2026-07-01.sql"); // 时间戳格式不对
     seedFile(outDir, "report.pdf");
 
     const configPath = writeConfigFile(
@@ -198,7 +198,7 @@ describe("清理范围：只碰本工具生成的、属于该数据源的文件"
       "随手放的笔记.txt",
       "manygames-backup.sql",
       "manygames-local.sql",
-      "manygames-local-2026-07-01.sql",
+      "manygames-2026-07-01.sql",
       "report.pdf",
     ]) {
       expect(existsSync(path.join(outDir, survivor))).toBe(true);
@@ -207,7 +207,7 @@ describe("清理范围：只碰本工具生成的、属于该数据源的文件"
 
   test("其他数据源的产物一律不动", async () => {
     seedHistory(5);
-    seedHistory(5, "manygames-prod");
+    seedHistory(5, "manygames_dev");
 
     const configPath = writeConfigFile(
       root,
@@ -217,10 +217,10 @@ describe("清理范围：只碰本工具生成的、属于该数据源的文件"
     const result = await runWith(configPath);
 
     expect(
-      result.ok && result.pruned.every((n) => n.startsWith("manygames-local-"))
+      result.ok && result.pruned.every((n) => n.startsWith("manygames-"))
     ).toBe(true);
     expect(
-      backupsIn(outDir).filter((n) => n.startsWith("manygames-prod-"))
+      backupsIn(outDir).filter((n) => n.startsWith("manygames_dev-"))
     ).toHaveLength(5);
   });
 
@@ -252,7 +252,7 @@ describe("清理范围：只碰本工具生成的、属于该数据源的文件"
 describe("回归：刚落盘的产物永远不能被本次清理删掉", () => {
   test("目录里存在时间戳更晚的备份时，新产物仍然活着", async () => {
     // 时钟回拨、从别处拷回旧目录、手工改名，都会造成「未来时间戳」
-    seedFile(outDir, "manygames-local-20991231-235959.sql", "来自未来");
+    seedFile(outDir, "manygames-20991231-235959.sql", "来自未来");
     const configPath = writeConfigFile(
       root,
       makeConfig(root, { defaults: { outDir, keep: 1 } })
@@ -264,8 +264,8 @@ describe("回归：刚落盘的产物永远不能被本次清理删掉", () => {
     if (!result.ok) return;
     // 报告成功就必须真的留下产物，否则退出码 0 是在撒谎
     expect(existsSync(result.file)).toBe(true);
-    expect(result.pruned).not.toContain(`manygames-local-${FIXED_STAMP}.sql`);
-    expect(result.pruned).toContain("manygames-local-20991231-235959.sql");
+    expect(result.pruned).not.toContain(`manygames-${FIXED_STAMP}.sql`);
+    expect(result.pruned).toContain("manygames-20991231-235959.sql");
   });
 
   test("keep=1 时旧备份仍然照删，保护不等于放弃清理", async () => {
@@ -278,6 +278,6 @@ describe("回归：刚落盘的产物永远不能被本次清理删掉", () => {
     const result = await runWith(configPath);
 
     expect(result.ok && result.pruned).toHaveLength(4);
-    expect(backupsIn(outDir)).toEqual([`manygames-local-${FIXED_STAMP}.sql`]);
+    expect(backupsIn(outDir)).toEqual([`manygames-${FIXED_STAMP}.sql`]);
   });
 });

@@ -45,9 +45,7 @@ describe("runBackup — 成功路径", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(path.basename(result.file)).toBe(
-      `manygames-local-${FIXED_STAMP}.sql`
-    );
+    expect(path.basename(result.file)).toBe(`manygames-${FIXED_STAMP}.sql`);
     expect(existsSync(result.file)).toBe(true);
     expect(result.bytes).toBe(VALID_SQL.length);
   });
@@ -514,5 +512,174 @@ describe("runBackup — 子进程收到的产物路径", () => {
     const target = outputPathOf(pg.calls[0]!.args);
     expect(target).toBeDefined();
     expect(path.dirname(target!)).toBe(outDir);
+  });
+});
+
+describe("产物前缀取数据库名，而不是数据源名", () => {
+  test("文件名前缀是连接串里的数据库名", async () => {
+    const configPath = writeConfigFile(
+      root,
+      makeConfig(root, {
+        sources: [
+          defaultSource({
+            name: "随便起的中文标签",
+            url: "postgresql://u:p@localhost:5490/manygames",
+          }),
+        ],
+      })
+    );
+    const pg = fakePgTools();
+
+    const result = await runBackup(
+      { sourceName: "随便起的中文标签" },
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
+    );
+
+    expect(result.ok && path.basename(result.file)).toBe(
+      `manygames-${FIXED_STAMP}.sql`
+    );
+  });
+
+  test("改掉数据源名之后，此前的备份仍然被认作同一批", async () => {
+    const outDir = path.join(root, "backups");
+    const url = "postgresql://u:p@localhost:5490/manygames";
+
+    const before = writeConfigFile(
+      root,
+      makeConfig(root, {
+        defaults: { outDir, keep: 1 },
+        sources: [defaultSource({ name: "旧名字", url })],
+      })
+    );
+    const first = fakePgTools();
+    const earlier = new Date(2026, 7, 15, 3, 0, 0);
+    await runBackup(
+      { sourceName: "旧名字" },
+      {
+        configPath: before,
+        runPgTool: first.run,
+        now: () => earlier,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
+    );
+
+    // 只改标签，连接串一个字没动
+    const after = writeConfigFile(
+      root,
+      makeConfig(root, {
+        defaults: { outDir, keep: 1 },
+        sources: [defaultSource({ name: "新名字", url })],
+      })
+    );
+    const second = fakePgTools();
+    const result = await runBackup(
+      { sourceName: "新名字" },
+      {
+        configPath: after,
+        runPgTool: second.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
+    );
+
+    // 认得出来才会去清它；认不出来就会一直堆着、永远不被计数
+    expect(result.ok && result.pruned).toEqual([
+      "manygames-20260815-030000.sql",
+    ]);
+  });
+});
+
+describe("防撞车：同库同目录的两个数据源", () => {
+  test("数据库名相同又备份到同一目录时，配置被拒", async () => {
+    const configPath = writeConfigFile(
+      root,
+      makeConfig(root, {
+        sources: [
+          defaultSource({ name: "生产" }),
+          defaultSource({ name: "生产的副本" }),
+        ],
+      })
+    );
+    const pg = fakePgTools();
+
+    const result = await runBackup(
+      { sourceName: "生产" },
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.step).toBe("config");
+    expect(result.failure.message).toContain("生产的副本");
+    expect(pg.dumpCalls).toHaveLength(0);
+  });
+
+  test("数据库名相同但输出目录不同时放行", async () => {
+    const configPath = writeConfigFile(
+      root,
+      makeConfig(root, {
+        sources: [
+          defaultSource({ name: "生产", outDir: path.join(root, "a") }),
+          defaultSource({ name: "生产的副本", outDir: path.join(root, "b") }),
+        ],
+      })
+    );
+    const pg = fakePgTools();
+
+    const result = await runBackup(
+      { sourceName: "生产" },
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
+    );
+
+    expect(result.ok).toBe(true);
+  });
+
+  test("数据库名不同则放行，哪怕同一个目录", async () => {
+    const configPath = writeConfigFile(
+      root,
+      makeConfig(root, {
+        sources: [
+          defaultSource({ name: "生产" }),
+          defaultSource({
+            name: "测试",
+            url: "postgresql://u:p@localhost:5490/manygames_dev",
+          }),
+        ],
+      })
+    );
+    const pg = fakePgTools();
+
+    const result = await runBackup(
+      { sourceName: "生产" },
+      {
+        configPath,
+        runPgTool: pg.run,
+        now: fixedClock,
+        statePath: path.join(root, "state.json"),
+        notify: noopNotify,
+      }
+    );
+
+    expect(result.ok).toBe(true);
   });
 });

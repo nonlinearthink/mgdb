@@ -29,10 +29,10 @@ export function planRetention(
 }
 
 /**
- * 扫目录收集候选。两道过滤：文件名必须符合本工具的命名规则，且属于该数据源。
+ * 扫目录收集候选。两道过滤：文件名必须符合本工具的命名规则，且前缀属于该数据库。
  * 符号链接（latest 指针）与目录都不算数据，直接排除。
  */
-export function collectBackups(dir: string, source: string): BackupEntry[] {
+export function collectBackups(dir: string, prefix: string): BackupEntry[] {
   let names: string[];
   try {
     names = readdirSync(dir);
@@ -43,7 +43,7 @@ export function collectBackups(dir: string, source: string): BackupEntry[] {
   const entries: BackupEntry[] = [];
   for (const name of names) {
     const parsed = parseBackupFileName(name);
-    if (!parsed || parsed.source !== source) continue;
+    if (!parsed || parsed.prefix !== prefix) continue;
     try {
       if (!lstatSync(path.join(dir, name)).isFile()) continue;
     } catch {
@@ -69,13 +69,13 @@ export interface PruneOutcome {
  */
 export function pruneBackups(
   dir: string,
-  source: string,
+  prefix: string,
   keep: number,
   justCreated?: string
 ): PruneOutcome {
   if (keep <= 0) return { deleted: [], warnings: [] }; // 0 = 永不清理
 
-  const all = collectBackups(dir, source);
+  const all = collectBackups(dir, prefix);
   const protectedPresent =
     justCreated !== undefined &&
     all.some((entry) => entry.name === justCreated);

@@ -59,8 +59,8 @@ describe("App 主屏", () => {
 
   test("把备份目录里的份数与占用统计出来", () => {
     saveConfig(configPath, makeConfig(root, { defaults: { outDir } }));
-    seedFile(outDir, "manygames-local-20260801-030000.sql", "12345");
-    seedFile(outDir, "manygames-local-20260802-030000.sql", "12345");
+    seedFile(outDir, "manygames-20260801-030000.sql", "12345");
+    seedFile(outDir, "manygames-20260802-030000.sql", "12345");
 
     const { lastFrame } = render(<App deps={deps()} />);
 
@@ -83,7 +83,7 @@ describe("App 主屏", () => {
     recordRun(statePath, "manygames-local", {
       at: new Date(),
       ok: true,
-      file: path.join(outDir, "manygames-local-20260816-030000.sql"),
+      file: path.join(outDir, "manygames-20260816-030000.sql"),
       bytes: 10,
     });
 
@@ -131,7 +131,7 @@ describe("App 主屏", () => {
         defaults: { outDir },
         sources: [
           defaultSource({ name: "manygames-local" }),
-          defaultSource({ name: "manygames-prod" }),
+          defaultSource({ name: "manygames_dev" }),
         ],
       })
     );
@@ -139,6 +139,6 @@ describe("App 主屏", () => {
     const output = render(<App deps={deps()} />).lastFrame() ?? "";
 
     expect(output).toContain("manygames-local");
-    expect(output).toContain("manygames-prod");
+    expect(output).toContain("manygames_dev");
   });
 });

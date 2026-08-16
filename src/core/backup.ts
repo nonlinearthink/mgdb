@@ -224,7 +224,9 @@ async function attemptBackup(
     );
   }
 
-  const fileName = backupFileName(source, at, format);
+  // 前缀用数据库名而不是数据源名：数据源名是可以随时改的标签，
+  // 拿它当前缀意味着改一次名字，此前所有备份就从计数和清理里消失了
+  const fileName = backupFileName(connection.value.database, at, format);
   const target = path.join(outDir, fileName);
   // 点号开头 + .tmp 结尾：不符合本工具的产物命名规则，不会被保留清理碰到
   const temp = path.join(outDir, `.${fileName}.tmp`);
@@ -277,7 +279,12 @@ async function attemptBackup(
     // 清理只在成功之后跑：失败还顺手删旧备份，会同时失去新旧两份
     const keep =
       request.keep ?? dataSource.value.keep ?? config.value.defaults.keep;
-    const pruned = pruneBackups(outDir, source, keep, fileName);
+    const pruned = pruneBackups(
+      outDir,
+      connection.value.database,
+      keep,
+      fileName
+    );
 
     return {
       ok: true,

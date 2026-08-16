@@ -1,6 +1,7 @@
 import { statSync } from "node:fs";
 import path from "node:path";
 import { expandHome } from "./config.ts";
+import { parsePgUrl } from "./datasource.ts";
 import { collectBackups } from "./retention.ts";
 import type { State } from "./state.ts";
 import type { Config } from "./types.ts";
@@ -53,9 +54,13 @@ export function collectStatus(
   return config.sources.map((source) => {
     const configuredOutDir = source.outDir ?? config.defaults.outDir;
     const outDir = configuredOutDir ? expandHome(configuredOutDir) : undefined;
-    const { count, bytes } = outDir
-      ? measure(outDir, source.name)
-      : { count: 0, bytes: 0 };
+    // 产物前缀是数据库名，所以份数与占用也按数据库名去数。
+    // 连接串坏掉时数不出来，但那件事会在备份时明确报错，这里不重复喊。
+    const connection = parsePgUrl(source.url);
+    const { count, bytes } =
+      outDir && connection.ok
+        ? measure(outDir, connection.value.database)
+        : { count: 0, bytes: 0 };
 
     const record = state.sources[source.name];
     const lastSuccessAt = parseDate(record?.lastSuccessAt);

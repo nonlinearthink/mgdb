@@ -76,7 +76,7 @@ describe("原子写入", () => {
 
     // 执行后：只剩正式产物，临时文件已消失
     expect(result.ok).toBe(true);
-    expect(backupsIn(outDir)).toEqual([`manygames-local-${FIXED_STAMP}.sql`]);
+    expect(backupsIn(outDir)).toEqual([`manygames-${FIXED_STAMP}.sql`]);
   });
 
   test("pg_dump 被告知写向临时文件而不是正式产物", async () => {
@@ -99,9 +99,7 @@ describe("原子写入", () => {
 
     const target = outputPathOf(pg.dumpCalls[0]!.args)!;
     expect(path.basename(target).startsWith(".")).toBe(true);
-    expect(target).not.toBe(
-      path.join(outDir, `manygames-local-${FIXED_STAMP}.sql`)
-    );
+    expect(target).not.toBe(path.join(outDir, `manygames-${FIXED_STAMP}.sql`));
   });
 
   test("产物内容原封不动地搬到正式文件名下", async () => {
@@ -181,7 +179,7 @@ describe("失败时不留残留、不动已有备份", () => {
 
   test("本次失败不影响之前已经备好的产物", async () => {
     mkdirSync(outDir, { recursive: true });
-    const existing = path.join(outDir, "manygames-local-20260815-020000.sql");
+    const existing = path.join(outDir, "manygames-20260815-020000.sql");
     writeFileSync(existing, "上一份完好的备份");
 
     const configPath = writeConfigFile(
@@ -202,7 +200,7 @@ describe("失败时不留残留、不动已有备份", () => {
     );
 
     expect(readFileSync(existing, "utf8")).toBe("上一份完好的备份");
-    expect(backupsIn(outDir)).toEqual(["manygames-local-20260815-020000.sql"]);
+    expect(backupsIn(outDir)).toEqual(["manygames-20260815-020000.sql"]);
   });
 });
 
@@ -275,7 +273,7 @@ describe("格式感知校验", () => {
     expect(result.ok).toBe(true);
     expect(pg.restoreCalls).toHaveLength(1);
     expect(pg.restoreCalls[0]!.args).toContain("--list");
-    expect(backupsIn(outDir)).toEqual([`manygames-local-${FIXED_STAMP}.dump`]);
+    expect(backupsIn(outDir)).toEqual([`manygames-${FIXED_STAMP}.dump`]);
   });
 
   test("dump 产物列不出目录时被拒", async () => {
@@ -368,7 +366,7 @@ describe("格式选择", () => {
     );
 
     expect(result.ok && path.basename(result.file)).toBe(
-      `manygames-local-${FIXED_STAMP}.dump`
+      `manygames-${FIXED_STAMP}.dump`
     );
     const { args } = pg.dumpCalls[0]!;
     // 传给 pg_dump 的仍是它自己的取值 custom，对外的命名改了不影响这里

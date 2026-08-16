@@ -16,12 +16,17 @@ export function formatStamp(at: Date): string {
   return `${date}-${time}`;
 }
 
+/**
+ * 产物文件名。前缀用的是**数据库名**而不是数据源名：数据源名是给人看的标签，
+ * 随时可能被改；数据库名跟着连接串走，稳定得多，改一次前缀就意味着
+ * 历史备份从此对不上号。
+ */
 export function backupFileName(
-  source: string,
+  prefix: string,
   at: Date,
   format: BackupFormat
 ): string {
-  return `${source}-${formatStamp(at)}.${EXTENSION[format]}`;
+  return `${prefix}-${formatStamp(at)}.${EXTENSION[format]}`;
 }
 
 const FORMAT_BY_EXTENSION: Record<string, BackupFormat> = {
@@ -32,7 +37,8 @@ const FORMAT_BY_EXTENSION: Record<string, BackupFormat> = {
 const BACKUP_FILE = /^(.+)-(\d{8}-\d{6})\.(sql|dump)$/;
 
 export interface ParsedBackupName {
-  source: string;
+  /** 文件名前缀，即备份来源的数据库名 */
+  prefix: string;
   stamp: string;
   format: BackupFormat;
 }
@@ -46,9 +52,9 @@ export function parseBackupFileName(
 ): ParsedBackupName | undefined {
   const match = BACKUP_FILE.exec(name);
   if (!match) return undefined;
-  const [, source, stamp, extension] = match;
-  if (!source || !stamp || !extension) return undefined;
+  const [, prefix, stamp, extension] = match;
+  if (!prefix || !stamp || !extension) return undefined;
   const format = FORMAT_BY_EXTENSION[extension];
   if (!format) return undefined;
-  return { source, stamp, format };
+  return { prefix, stamp, format };
 }
